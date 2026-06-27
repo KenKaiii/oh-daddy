@@ -1,0 +1,151 @@
+import { MetaApiCallError, type MetaApiErrorBody } from "./meta-error";
+import type {
+	NormalizedContact,
+	NormalizedMessage,
+	PlatformAdapter,
+	PostCommentReplyParams,
+	SendPrivateReplyParams,
+} from "./types";
+
+const GRAPH_API_BASE = "https://graph.facebook.com/v25.0";
+
+interface FBCommentData {
+	id?: string;
+	comment_id?: string;
+	message?: string;
+	from?: { id: string; name?: string };
+	post_id?: string;
+	parent_id?: string;
+	created_time?: string | number;
+	verb?: string;
+}
+
+/** Convert created_time (Unix seconds, Unix ms, or ISO string) to ISO string. */
+function normalizeTimestamp(t?: string | number): string {
+	if (!t) return new Date().toISOString();
+	if (typeof t === "number") {
+		const ms = t < 1e12 ? t * 1000 : t;
+		return new Date(ms).toISOString();
+	}
+	const d = new Date(t);
+	return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
+
+interface MetaApiErrorResponse {
+	error?: MetaApiErrorBody;
+}
+
+export async function metaApiFetch<T>(
+	url: string,
+	options?: RequestInit,
+): Promise<T> {
+	const response = await fetch(url, options);
+	if (!response.ok) {
+		let body: MetaApiErrorResponse | null = null;
+		try {
+			body = (await response.json()) as MetaApiErrorResponse;
+		} catch {
+			body = null;
+		}
+		const msg =
+			body?.error?.message ?? `Facebook API error: ${response.status}`;
+		throw new MetaApiCallError(msg, {
+			status: response.status,
+			body: body?.error ?? null,
+		});
+	}
+	return response.json() as Promise<T>;
+}
+
+/**
+ * Fetch comment author info from the Graph API. The webhook payload often
+ * omits `from`, so we fetch it individually when author info is missing.
+ * Returns null if the API doesn't return author info (e.g. deleted user).
+ */
+export async function fetchCommentAuthor(
+	accessToken: string,
+	commentId: string,
+): Promise<{ id: string; name: string | null } | null> {
+	try {
+		const url = `${GRAPH_API_BASE}/${commentId}?fields=from`;
+		const data = await metaApiFetch<{ from?: { id: string; name?: string } }>(
+			url,
+			{ headers: { Authorization: `Bearer ${accessToken}` } },
+		);
+		if (!data.from?.id) return null;
+		return { id: data.from.id, name: data.from.name ?? null };
+	} catch {
+		return null;
+	}
+}
+
+export const facebookAdapter: PlatformAdapter = {
+	platform: "facebook",
+
+	normalizeComment(raw: unknown): NormalizedMessage {
+		const data = raw as FBCommentData;
+		const commentId = data.comment_id ?? data.id ?? "";
+
+		// For top-level comments Facebook sets parent_id to the post_id. We must
+		// use the comment's own id as the thread id so replies go UNDER the
+		// user's comment instead of creating a new top-level comment.
+		const isTopLevel = !data.parent_id || data.parent_id === data.post_id;
+		const threadId = isTopLevel ? commentId : (data.parent_id as string);
+
+		return {
+			platformMessageId: commentId,
+			platformThreadId: threadId,
+			platformPostId: data.post_id ?? null,
+			platformUserId: data.from?.id ?? "",
+			userName: data.from?.name ?? null,
+			userUsername: null,
+			userAvatarUrl: null,
+			content: data.message ?? "",
+			timestamp: normalizeTimestamp(data.created_time),
+			interactionType: "comment",
+			metadata: { raw },
+		};
+	},
+
+	normalizeContact(raw: unknown): NormalizedContact {
+		const data = raw as FBCommentData;
+		return {
+			platformUserId: data.from?.id ?? "",
+			name: data.from?.name ?? null,
+			username: null,
+			avatarUrl: null,
+			metadata: { raw },
+		};
+	},
+
+	async postCommentReply(params: PostCommentReplyParams): Promise<string> {
+		const url = `${GRAPH_API_BASE}/${params.parentCommentId}/comments`;
+		const result = await metaApiFetch<{ id: string }>(url, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${params.accessToken}`,
+			},
+			body: JSON.stringify({ message: params.content }),
+		});
+		return result.id;
+	},
+
+	async sendPrivateReply(params: SendPrivateReplyParams): Promise<string> {
+		// Private Reply: POST /PAGE-ID/messages with recipient.comment_id.
+		// Bypasses the 24h messaging window. One reply per comment, within 7 days.
+		const url = `${GRAPH_API_BASE}/${params.accountId}/messages`;
+		const result = await metaApiFetch<{ message_id: string }>(url, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${params.accessToken}`,
+			},
+			body: JSON.stringify({
+				recipient: { comment_id: params.commentId },
+				message: { text: params.content },
+			}),
+		});
+		return result.message_id;
+	},
+};

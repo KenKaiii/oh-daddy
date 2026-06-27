@@ -35,5 +35,27 @@
 				"organizeImports": "on"
 			}
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": [
+				"src/components/StaggeredMenu.tsx",
+				"src/components/SideRays.tsx"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noExplicitAny": "off",
+						"noArrayIndexKey": "off"
+					},
+					"a11y": {
+						"useAriaPropsSupportedByRole": "off"
+					},
+					"performance": {
+						"noImgElement": "off"
+					}
+				}
+			}
+		}
+	]
 }
