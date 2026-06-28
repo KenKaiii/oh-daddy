@@ -42,7 +42,7 @@ const FIELDS = [
 		provider: "meta_config_id",
 		label: "Meta Config ID",
 		placeholder: "Facebook Login for Business config id",
-		info: "Optional. If set, uses Facebook Login for Business and skips the scope based PKCE flow.",
+		info: "Required. Create a configuration under Meta App, Facebook Login for Business, Configurations, pick your permissions there, then paste the Configuration ID here. Without it the connect flow fails with an Invalid Scopes error.",
 	},
 ] as const;
 
