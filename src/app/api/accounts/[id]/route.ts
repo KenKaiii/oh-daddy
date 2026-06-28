@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 
+import { requireOperator } from "@/lib/api-auth";
 import { getDb } from "@/lib/db";
 
 // Soft delete. Hard-deleting a platform_account would CASCADE-delete every
@@ -7,9 +8,12 @@ import { getDb } from "@/lib/db";
 // and blank the token; the /accounts listing filters disconnected rows out and
 // reconnecting the same (platform, account_id) revives the row.
 export async function DELETE(
-	_request: NextRequest,
+	request: NextRequest,
 	{ params }: { params: Promise<{ id: string }> },
 ) {
+	const denied = requireOperator(request);
+	if (denied) return denied;
+
 	const { id } = await params;
 	try {
 		const sql = getDb();

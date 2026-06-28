@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 
+import { encryptToken } from "@/lib/crypto";
 import { getDb } from "@/lib/db";
 import type { PlatformAccountRow } from "@/types/db";
 
@@ -30,10 +31,12 @@ export async function GET() {
 			WHERE disconnected_at IS NULL
 			ORDER BY platform, account_name`;
 
+		// Note: `account_id` (the Meta-side page/IG id) is intentionally omitted.
+		// It is the value an attacker would need as the webhook `entry.id` gate, so
+		// it is never exposed to API callers. Internal ops use our own `id` (UUID).
 		const safe = rows.map((a) => ({
 			id: a.id,
 			platform: a.platform,
-			account_id: a.account_id,
 			account_name: a.account_name,
 			is_connected: isConnected(a.access_token),
 			token_expires_at: a.token_expires_at,
@@ -83,8 +86,10 @@ export async function POST(request: NextRequest) {
 		);
 	}
 
-	const tokenValue =
-		typeof access_token === "string" ? access_token : "pending";
+	// Encrypt the token at rest (sentinels like "pending" pass through).
+	const tokenValue = encryptToken(
+		typeof access_token === "string" ? access_token : "pending",
+	);
 
 	try {
 		const sql = getDb();

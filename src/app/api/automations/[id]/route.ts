@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 
+import { requireOperator } from "@/lib/api-auth";
 import { getAutomationById } from "@/lib/automations/queries";
 import { getDb } from "@/lib/db";
 import { updateAutomationSchema } from "@/lib/schemas/automation";
@@ -9,6 +10,9 @@ export async function PATCH(
 	request: NextRequest,
 	{ params }: { params: Promise<{ id: string }> },
 ) {
+	const denied = requireOperator(request);
+	if (denied) return denied;
+
 	const { id } = await params;
 	let body: unknown;
 	try {
@@ -66,9 +70,12 @@ export async function PATCH(
 }
 
 export async function DELETE(
-	_request: NextRequest,
+	request: NextRequest,
 	{ params }: { params: Promise<{ id: string }> },
 ) {
+	const denied = requireOperator(request);
+	if (denied) return denied;
+
 	const { id } = await params;
 	try {
 		const sql = getDb();

@@ -19,7 +19,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================
--- 1. settings — plaintext credential store (env is the fallback)
+-- 1. settings — credential store (env is the fallback)
+-- Values are encrypted at rest (AES-256-GCM, enc:v1: blobs) by the app; the
+-- integrity-gating secrets (meta_app_secret, meta_webhook_verify_token) are
+-- env-only and never stored here (BP-001). See src/lib/crypto.ts.
 -- ============================================================
 CREATE TABLE IF NOT EXISTS settings (
   provider text PRIMARY KEY,
@@ -35,6 +38,8 @@ CREATE TABLE IF NOT EXISTS platform_accounts (
   platform text NOT NULL CHECK (platform IN ('facebook', 'instagram')),
   account_id text NOT NULL,
   account_name text NOT NULL,
+  -- Encrypted at rest (AES-256-GCM, enc:v1: blob). Non-secret sentinels
+  -- (''/'pending'/'mock-*') are stored verbatim. See src/lib/crypto.ts.
   access_token text NOT NULL,
   refresh_token text,
   token_expires_at timestamptz,

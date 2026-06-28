@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { apiFetch } from "@/lib/api-client";
 import { notify } from "@/lib/toast";
 import { formatError } from "@/lib/utils";
 
@@ -74,8 +75,8 @@ export default function AutomationsPage() {
 		setLoading(true);
 		try {
 			const [aRes, accRes] = await Promise.all([
-				fetch("/api/automations"),
-				fetch("/api/accounts"),
+				apiFetch("/api/automations"),
+				apiFetch("/api/accounts"),
 			]);
 			const aJson = await aRes.json();
 			const accJson = await accRes.json();
@@ -122,7 +123,7 @@ export default function AutomationsPage() {
 			prev.map((x) => (x.id === a.id ? { ...x, is_active: next } : x)),
 		);
 		try {
-			const res = await fetch(`/api/automations/${a.id}`, {
+			const res = await apiFetch(`/api/automations/${a.id}`, {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ is_active: next }),
@@ -156,7 +157,9 @@ export default function AutomationsPage() {
 		});
 		if (!ok) return;
 		try {
-			const res = await fetch(`/api/automations/${a.id}`, { method: "DELETE" });
+			const res = await apiFetch(`/api/automations/${a.id}`, {
+				method: "DELETE",
+			});
 			// Treat 404 as already-gone: the end state (row absent) is the same.
 			if (!res.ok && res.status !== 404) {
 				const json = await res.json().catch(() => ({}));
@@ -198,7 +201,7 @@ export default function AutomationsPage() {
 				? `/api/automations/${editing.id}`
 				: "/api/automations";
 			const method = editing ? "PATCH" : "POST";
-			const res = await fetch(url, {
+			const res = await apiFetch(url, {
 				method,
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(payload),

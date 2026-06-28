@@ -12,9 +12,12 @@
  *   meta_config_id            → META_CONFIG_ID
  *   meta_webhook_verify_token → META_WEBHOOK_VERIFY_TOKEN
  *
- * NOTE: values are stored in plaintext (MVP simplification). Encrypt before
- * any production/multi-tenant deployment.
+ * NOTE: DB-stored values are encrypted at rest with AES-256-GCM (see
+ * `@/lib/crypto`). The integrity-gating secrets (meta_app_secret,
+ * meta_webhook_verify_token) are env-only and never touch the DB at all
+ * (see ENV_ONLY_PROVIDERS / security finding BP-001).
  */
+import { decryptSecret, isEncrypted } from "@/lib/crypto";
 import { getDb } from "@/lib/db";
 
 export const SETTINGS_PROVIDERS = [
@@ -26,7 +29,7 @@ export const SETTINGS_PROVIDERS = [
 
 export type SettingsProvider = (typeof SETTINGS_PROVIDERS)[number];
 
-const ENV_FALLBACK: Record<string, string> = {
+export const ENV_FALLBACK: Record<string, string> = {
 	meta_app_id: "META_APP_ID",
 	meta_app_secret: "META_APP_SECRET",
 	meta_config_id: "META_CONFIG_ID",
@@ -34,15 +37,43 @@ const ENV_FALLBACK: Record<string, string> = {
 };
 
 /**
+ * Providers that gate webhook/OAuth integrity. These are read ONLY from the
+ * environment and can never be written via HTTP. Sourcing them from the
+ * HTTP-writable `settings` table would let anyone overwrite `meta_app_secret`
+ * and then forge a validly-signed webhook (see security finding BP-001).
+ */
+export const ENV_ONLY_PROVIDERS: ReadonlySet<SettingsProvider> = new Set([
+	"meta_app_secret",
+	"meta_webhook_verify_token",
+]);
+
+export function isEnvOnlyProvider(provider: string): boolean {
+	return (ENV_ONLY_PROVIDERS as ReadonlySet<string>).has(provider);
+}
+
+/**
  * Get a settings key by provider name. Checks DB first, then env fallback.
  * Returns null if not found in either.
  */
 export async function getSettingsKey(provider: string): Promise<string | null> {
+	// Integrity-gating secrets are env-only: never consult the (HTTP-writable)
+	// DB row, so a poisoned `settings` row cannot shadow the real env secret.
+	if (isEnvOnlyProvider(provider)) {
+		const envVar = ENV_FALLBACK[provider];
+		const val = envVar ? process.env[envVar] : undefined;
+		return val?.trim() ? val : null;
+	}
+
 	try {
 		const sql = getDb();
 		const rows = await sql<{ value: string }[]>`
 			SELECT value FROM settings WHERE provider = ${provider} LIMIT 1`;
-		if (rows[0]?.value?.trim()) return rows[0].value;
+		const stored = rows[0]?.value;
+		if (stored?.trim()) {
+			// Decrypt values stored at rest; tolerate legacy not-yet-migrated
+			// plaintext rows (pass through unchanged).
+			return isEncrypted(stored) ? decryptSecret(stored) : stored;
+		}
 	} catch {
 		// DB lookup failed — fall through to env
 	}

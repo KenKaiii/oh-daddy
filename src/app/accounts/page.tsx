@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useConfirm } from "@/components/ui/confirm";
+import { apiFetch } from "@/lib/api-client";
 import { notify } from "@/lib/toast";
 import { formatError } from "@/lib/utils";
 
@@ -15,7 +16,6 @@ import { useOAuthPopup } from "./_hooks/use-oauth-popup";
 interface Account {
 	id: string;
 	platform: string;
-	account_id: string;
 	account_name: string;
 	is_connected: boolean;
 }
@@ -30,7 +30,7 @@ export default function AccountsPage() {
 	const load = useCallback(async () => {
 		setLoading(true);
 		try {
-			const res = await fetch("/api/accounts");
+			const res = await apiFetch("/api/accounts");
 			const json = await res.json();
 			if (!res.ok) throw new Error(json.error ?? "Failed to load accounts");
 			setAccounts(json.data ?? []);
@@ -67,7 +67,7 @@ export default function AccountsPage() {
 			// launch the Meta consent flow. Discovery replaces it with the real
 			// Pages + IG accounts on callback.
 			const placeholderId = `pending-${crypto.randomUUID()}`;
-			const res = await fetch("/api/accounts", {
+			const res = await apiFetch("/api/accounts", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -95,7 +95,7 @@ export default function AccountsPage() {
 		});
 		if (!ok) return;
 		try {
-			const res = await fetch(`/api/accounts/${a.id}`, { method: "DELETE" });
+			const res = await apiFetch(`/api/accounts/${a.id}`, { method: "DELETE" });
 			if (!res.ok) {
 				const json = await res.json().catch(() => ({}));
 				throw new Error(json.error ?? "Failed to disconnect");

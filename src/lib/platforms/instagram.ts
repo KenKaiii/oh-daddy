@@ -1,4 +1,4 @@
-import { metaApiFetch } from "./facebook";
+import { graphNodeId, metaApiFetch } from "./facebook";
 import type {
 	NormalizedContact,
 	NormalizedMessage,
@@ -54,7 +54,7 @@ export const instagramAdapter: PlatformAdapter = {
 	},
 
 	async postCommentReply(params: PostCommentReplyParams): Promise<string> {
-		const url = `${FB_GRAPH_API_BASE}/${params.parentCommentId}/replies`;
+		const url = `${FB_GRAPH_API_BASE}/${graphNodeId(params.parentCommentId)}/replies`;
 		const result = await metaApiFetch<{ id: string }>(url, {
 			method: "POST",
 			headers: {

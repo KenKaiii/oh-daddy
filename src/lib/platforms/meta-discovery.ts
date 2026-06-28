@@ -1,6 +1,8 @@
+import { encryptToken } from "@/lib/crypto";
 import { getDb } from "@/lib/db";
 import { requireSettingsKey } from "@/lib/settings";
 import type { Json } from "@/types/db";
+import { graphNodeId } from "./facebook";
 
 // ============================================================
 // Types
@@ -43,12 +45,14 @@ export async function upsertPlatformAccount(account: {
 }): Promise<void> {
 	const sql = getDb();
 	const metadata = account.metadata ?? {};
+	// Encrypt the token at rest (real tokens only; sentinels pass through).
+	const storedToken = encryptToken(account.access_token);
 	await sql`
 		INSERT INTO platform_accounts
 			(platform, account_id, account_name, access_token, token_expires_at, metadata)
 		VALUES (
 			${account.platform}, ${account.account_id}, ${account.account_name},
-			${account.access_token}, ${account.token_expires_at}, ${sql.json(metadata)}
+			${storedToken}, ${account.token_expires_at}, ${sql.json(metadata)}
 		)
 		ON CONFLICT (platform, account_id) DO UPDATE SET
 			account_name = EXCLUDED.account_name,
@@ -129,8 +133,16 @@ export async function discoverMetaAccounts(
 /** Fetch all Pages from /me/accounts with pagination. */
 export async function fetchAllMetaPages(token: string): Promise<MetaPage[]> {
 	const allPages: MetaPage[] = [];
+	const pagesQuery = new URLSearchParams({
+		fields:
+			"id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}",
+		limit: "100",
+		access_token: token,
+	});
+	// First page is built locally; subsequent `nextUrl`s are Meta-minted paging
+	// cursors returned verbatim by the API.
 	let nextUrl: string | undefined =
-		`https://graph.facebook.com/v25.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}&limit=100&access_token=${token}`;
+		`https://graph.facebook.com/v25.0/me/accounts?${pagesQuery.toString()}`;
 
 	while (nextUrl) {
 		const pagesRes = await fetch(nextUrl);
@@ -179,8 +191,12 @@ export async function upsertDiscoveredPages(
 
 		// Subscribe Page to webhooks (feed + messages).
 		try {
+			const subQuery = new URLSearchParams({
+				subscribed_fields: "feed,messages",
+				access_token: page.access_token,
+			});
 			const subRes = await fetch(
-				`https://graph.facebook.com/v25.0/${page.id}/subscribed_apps?subscribed_fields=feed,messages&access_token=${page.access_token}`,
+				`https://graph.facebook.com/v25.0/${graphNodeId(page.id)}/subscribed_apps?${subQuery.toString()}`,
 				{ method: "POST" },
 			);
 			if (!subRes.ok) {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { apiFetch } from "@/lib/api-client";
 
 interface Stats {
 	connectedAccounts: number;
@@ -49,7 +50,7 @@ export default function DashboardPage() {
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
-		fetch("/api/stats")
+		apiFetch("/api/stats")
 			.then(async (r) => {
 				const json = await r.json();
 				if (!r.ok) throw new Error(json.error ?? "Failed to load stats");

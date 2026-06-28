@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { inngest } from "@/inngest/client";
 import { runKeywordAutomation } from "@/lib/automations/run-automation";
+import { decryptToken } from "@/lib/crypto";
 import { getDb } from "@/lib/db";
 import { getAdapter } from "@/lib/platforms";
 import { fetchCommentAuthor } from "@/lib/platforms/facebook";
@@ -41,14 +42,22 @@ export const processComment = inngest.createFunction(
 				SELECT account_id, access_token, account_name
 				FROM platform_accounts WHERE id = ${parsed.platformAccountId}`;
 
+			// Decrypt the token only here, in memory, for the author-enrichment call
+			// below. The encrypted blob (not the plaintext) is what we return from
+			// this step, so Inngest's durable step state never holds a live token.
+			// Sentinels ("" / "pending") and legacy plaintext pass through.
+			const ownAccessToken = ownAccount
+				? decryptToken(ownAccount.access_token)
+				: null;
+
 			// Enrich author info when the webhook omitted `from`.
 			if (
 				!normalizedContact.platformUserId &&
-				ownAccount?.access_token &&
+				ownAccessToken &&
 				normalized.platformMessageId
 			) {
 				const author = await fetchCommentAuthor(
-					ownAccount.access_token,
+					ownAccessToken,
 					normalized.platformMessageId,
 				);
 				if (author) {
@@ -190,7 +199,9 @@ export const processComment = inngest.createFunction(
 				content: normalized.content,
 				platformMessageId: normalized.platformMessageId ?? null,
 				ownAccountId: ownAccount?.account_id ?? null,
-				ownAccessToken: ownAccount?.access_token ?? null,
+				// Encrypted-at-rest blob (or sentinel) — decrypted at point of use in
+				// step 2, never persisted to Inngest state as plaintext.
+				ownAccessTokenEncrypted: ownAccount?.access_token ?? null,
 			};
 		});
 
@@ -207,7 +218,9 @@ export const processComment = inngest.createFunction(
 				const result = await runKeywordAutomation({
 					platform: parsed.platform,
 					platformAccountId: parsed.platformAccountId,
-					ownAccessToken: ingested.ownAccessToken as string,
+					ownAccessToken: decryptToken(
+						ingested.ownAccessTokenEncrypted,
+					) as string,
 					ownAccountId: ingested.ownAccountId as string,
 					messageId: ingested.messageId,
 					conversationId: ingested.conversationId,

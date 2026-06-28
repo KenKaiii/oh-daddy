@@ -1,4 +1,7 @@
+import { cookies } from "next/headers";
+
 import { getDb } from "@/lib/db";
+import { OAUTH_STATE_COOKIE } from "@/lib/oauth/constants";
 import { buildOAuthUrl } from "@/lib/oauth/urls";
 import type { PlatformType } from "@/lib/schemas/platform";
 import type { Json } from "@/types/db";
@@ -55,10 +58,9 @@ export async function POST(request: Request) {
 	try {
 		authUrlResult = await buildOAuthUrl(platform, redirectUri);
 	} catch (err) {
+		console.error("Failed to build OAuth URL:", err);
 		return Response.json(
-			{
-				error: err instanceof Error ? err.message : "Failed to build OAuth URL",
-			},
+			{ error: "Failed to build OAuth URL" },
 			{ status: 400 },
 		);
 	}
@@ -85,6 +87,19 @@ export async function POST(request: Request) {
 			{ status: 500 },
 		);
 	}
+
+	// Bind the state to the initiating browser session: store it in an
+	// HttpOnly, SameSite=Lax cookie that the callback must echo back. This
+	// ties the browser that started the flow to the one that completes it
+	// (RFC 9700 §4.7.1 / OWASP: one-time CSRF token bound to the user agent).
+	const cookieStore = await cookies();
+	cookieStore.set(OAUTH_STATE_COOKIE, authUrlResult.state, {
+		httpOnly: true,
+		sameSite: "lax",
+		secure: process.env.NODE_ENV === "production",
+		path: "/",
+		maxAge: OAUTH_STATE_TTL_MS / 1000,
+	});
 
 	return Response.json({
 		authorizationUrl: authUrlResult.url,

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { apiFetch } from "@/lib/api-client";
+
 export type OAuthMessage = {
 	type: "OAUTH_SUCCESS" | "OAUTH_ERROR";
 	platform?: string;
@@ -52,7 +54,7 @@ export function useOAuthPopup(options: UseOAuthPopupOptions = {}) {
 			setIsLoading(true);
 			setError(null);
 			try {
-				const response = await fetch("/api/oauth/authorize", {
+				const response = await apiFetch("/api/oauth/authorize", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ platform, accountId }),

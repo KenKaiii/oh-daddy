@@ -10,7 +10,8 @@
 		"lint": "biome check",
 		"format": "biome format --write",
 		"check": "biome check --write",
-		"db:push": "psql \"$DATABASE_URL\" -f db/schema.sql"
+		"db:push": "psql \"$DATABASE_URL\" -f db/schema.sql",
+		"db:encrypt-secrets": "node db/encrypt-existing-secrets.mjs"
 	},
 	"dependencies": {
 		"clsx": "^2.1.1",

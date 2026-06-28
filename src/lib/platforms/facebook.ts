@@ -9,6 +9,31 @@ import type {
 
 const GRAPH_API_BASE = "https://graph.facebook.com/v25.0";
 
+/**
+ * Graph node ids are numeric, optionally underscore-joined composites — e.g. a
+ * comment id is `{pagepost-id}_{comment-id}` and a pagepost-id is itself
+ * `{page-id}_{post-id}`, so a valid id may be multi-segment like `123_456_789`.
+ * @see https://developers.facebook.com/docs/graph-api/reference/comment/
+ */
+const GRAPH_NODE_ID = /^\d+(_\d+)*$/;
+
+/**
+ * Defense-in-depth for URL construction: validate a Graph node id against the
+ * strict numeric/underscore format, then return it encoded for safe use as a
+ * URL path segment. Throws on anything else so a malformed id can never alter
+ * the request path. The encode is a no-op for legitimate ids (digits and `_`
+ * are URL-unreserved) but guards against future callers passing untrusted ids.
+ */
+export function graphNodeId(id: string): string {
+	if (!GRAPH_NODE_ID.test(id)) {
+		throw new MetaApiCallError(`Invalid Graph node id: ${id}`, {
+			status: 400,
+			body: null,
+		});
+	}
+	return encodeURIComponent(id);
+}
+
 interface FBCommentData {
 	id?: string;
 	comment_id?: string;
@@ -67,7 +92,7 @@ export async function fetchCommentAuthor(
 	commentId: string,
 ): Promise<{ id: string; name: string | null } | null> {
 	try {
-		const url = `${GRAPH_API_BASE}/${commentId}?fields=from`;
+		const url = `${GRAPH_API_BASE}/${graphNodeId(commentId)}?fields=from`;
 		const data = await metaApiFetch<{ from?: { id: string; name?: string } }>(
 			url,
 			{ headers: { Authorization: `Bearer ${accessToken}` } },
@@ -119,7 +144,7 @@ export const facebookAdapter: PlatformAdapter = {
 	},
 
 	async postCommentReply(params: PostCommentReplyParams): Promise<string> {
-		const url = `${GRAPH_API_BASE}/${params.parentCommentId}/comments`;
+		const url = `${GRAPH_API_BASE}/${graphNodeId(params.parentCommentId)}/comments`;
 		const result = await metaApiFetch<{ id: string }>(url, {
 			method: "POST",
 			headers: {
@@ -134,7 +159,7 @@ export const facebookAdapter: PlatformAdapter = {
 	async sendPrivateReply(params: SendPrivateReplyParams): Promise<string> {
 		// Private Reply: POST /PAGE-ID/messages with recipient.comment_id.
 		// Bypasses the 24h messaging window. One reply per comment, within 7 days.
-		const url = `${GRAPH_API_BASE}/${params.accountId}/messages`;
+		const url = `${GRAPH_API_BASE}/${graphNodeId(params.accountId)}/messages`;
 		const result = await metaApiFetch<{ message_id: string }>(url, {
 			method: "POST",
 			headers: {

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
+import { cookies } from "next/headers";
 
 import SideRays from "@/components/SideRays";
 import { SiteMenu } from "@/components/site-menu";
 import { ConfirmProvider } from "@/components/ui/confirm";
 import { Toaster } from "@/components/ui/toaster";
+import { isAuthorized, SESSION_COOKIE } from "@/lib/auth";
 
 import "./globals.css";
 
@@ -59,9 +61,15 @@ export const metadata: Metadata = {
 	robots: { index: true, follow: true },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
 	children,
 }: Readonly<{ children: React.ReactNode }>) {
+	// The nav is only rendered for the authenticated operator. Auth is proven by
+	// the httpOnly session cookie (unreadable from client JS), so this decision
+	// must be made server-side here — no flash of nav for logged-out visitors.
+	const cookieStore = await cookies();
+	const authed = isAuthorized(null, cookieStore.get(SESSION_COOKIE)?.value);
+
 	return (
 		<html
 			lang="en"
@@ -101,8 +109,14 @@ export default function RootLayout({
 					/>
 				</div>
 				<ConfirmProvider>
-					<SiteMenu />
-					<main className="mx-auto max-w-5xl px-4 pb-16 pt-24 sm:px-6">
+					{authed && <SiteMenu />}
+					<main
+						className={
+							authed
+								? "mx-auto max-w-5xl px-4 pb-16 pt-24 sm:px-6"
+								: "mx-auto w-full max-w-5xl px-4 sm:px-6"
+						}
+					>
 						{children}
 					</main>
 				</ConfirmProvider>

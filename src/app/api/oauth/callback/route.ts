@@ -1,6 +1,9 @@
+import { cookies } from "next/headers";
 import { z } from "zod";
 
+import { encryptToken } from "@/lib/crypto";
 import { getDb } from "@/lib/db";
+import { OAUTH_STATE_COOKIE } from "@/lib/oauth/constants";
 import {
 	type DiscoveredAccount,
 	discoverMetaAccounts,
@@ -36,7 +39,13 @@ async function exchangeMetaToken(
 	);
 
 	if (!response.ok) {
-		throw new Error(`Meta token exchange failed: ${await response.text()}`);
+		// Log the upstream diagnostic body server-side only; never embed it in
+		// the thrown Error.message, which the callback reflects to the client.
+		console.error(
+			`Meta token exchange failed (${response.status}):`,
+			await response.text(),
+		);
+		throw new Error("Meta token exchange failed");
 	}
 	return response.json();
 }
@@ -62,30 +71,51 @@ export async function POST(request: Request) {
 	}
 	const { code, state } = validated.data;
 
+	// Session binding: the callback must be completed by the same browser that
+	// initiated the flow. authorize set an HttpOnly cookie carrying the state;
+	// require it to match the submitted state (RFC 9700 §4.7.1). Consume the
+	// cookie immediately so it cannot be reused.
+	const cookieStore = await cookies();
+	const boundState = cookieStore.get(OAUTH_STATE_COOKIE)?.value;
+	cookieStore.delete(OAUTH_STATE_COOKIE);
+	if (!boundState || boundState !== state) {
+		return Response.json(
+			{ error: "Invalid or missing session state — possible CSRF attack" },
+			{ status: 400 },
+		);
+	}
+
 	const sql = getDb();
 	const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 	const redirectUri = `${baseUrl}/oauth/callback`;
 
-	// Resolve the account by the stored oauth_state (CSRF + lookup in one step).
+	// Atomically claim the flow: a single UPDATE matches the account by
+	// oauth_state AND clears that token in one statement, so the state is
+	// single-use with no TOCTOU window. The match condition is on the mutated
+	// row itself (p.metadata->>'oauth_state'), so under READ COMMITTED a
+	// concurrent/replayed callback is re-checked after the row lock and finds
+	// the token already gone — only the first request claims it. The remaining
+	// one-time fields (code_verifier, expires_at) are returned for validation
+	// and stripped in the final write below.
 	type AccountRow = {
 		id: string;
 		account_id: string;
 		platform: string;
 		metadata: Record<string, Json>;
 	};
-	let accounts: AccountRow[];
+	let claimed: AccountRow[];
 	try {
-		accounts = await sql<AccountRow[]>`
-			SELECT id, account_id, platform, metadata FROM platform_accounts`;
+		claimed = await sql<AccountRow[]>`
+			UPDATE platform_accounts p
+			SET metadata = p.metadata - 'oauth_state'
+			WHERE p.metadata->>'oauth_state' = ${state}
+			RETURNING p.id, p.account_id, p.platform, p.metadata`;
 	} catch (err) {
 		console.error("Account lookup failed:", err);
 		return Response.json({ error: "Account lookup failed" }, { status: 500 });
 	}
 
-	const account = accounts.find((a) => {
-		const meta = a.metadata ?? {};
-		return meta.oauth_state === state;
-	});
+	const account = claimed[0];
 
 	if (!account) {
 		return Response.json(
@@ -94,7 +124,20 @@ export async function POST(request: Request) {
 		);
 	}
 
+	// `metadata` no longer carries oauth_state (the claim removed it) but still
+	// holds the one-time code_verifier + expiry used for validation below.
 	const metadata: Record<string, Json | undefined> = account.metadata ?? {};
+
+	// Enforce the state TTL recorded at authorize time. The atomic claim already
+	// consumed the state; an expired one is rejected here regardless.
+	const expiresAt = metadata.oauth_state_expires_at;
+	if (typeof expiresAt === "number" && Date.now() > expiresAt) {
+		return Response.json(
+			{ error: "State parameter has expired — please restart the flow" },
+			{ status: 400 },
+		);
+	}
+
 	const platform = account.platform as PlatformType;
 	const storedCodeVerifier = (metadata.oauth_code_verifier as string) ?? "";
 
@@ -104,22 +147,16 @@ export async function POST(request: Request) {
 		tokenData = await exchangeMetaToken(code, redirectUri, storedCodeVerifier);
 	} catch (tokenError) {
 		console.error("Token exchange error:", tokenError);
-		return Response.json(
-			{
-				error:
-					tokenError instanceof Error
-						? tokenError.message
-						: "Token exchange failed",
-			},
-			{ status: 500 },
-		);
+		return Response.json({ error: "Token exchange failed" }, { status: 502 });
 	}
 
 	const tokenExpiresAt = tokenData.expires_in
 		? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
 		: null;
 
-	// Strip the one-time OAuth metadata.
+	// Recompute the cleaned metadata for the final write. The atomic claim above
+	// already stripped these keys in the DB; this keeps the persisted value in
+	// sync when we also write access_token below.
 	const {
 		oauth_state: _s,
 		oauth_account_id: _a,
@@ -150,10 +187,11 @@ export async function POST(request: Request) {
 	try {
 		if (!triggeringWasDiscovered) {
 			// Discovery didn't cover the triggering placeholder — update it directly
-			// so we at least persist the user token + clear OAuth metadata.
+			// so we at least persist the user token + clear OAuth metadata. Encrypt
+			// the token at rest.
 			await sql`
 				UPDATE platform_accounts
-				SET access_token = ${tokenData.access_token},
+				SET access_token = ${encryptToken(tokenData.access_token)},
 				    token_expires_at = ${tokenExpiresAt},
 				    metadata = ${cleanJson}
 				WHERE id = ${account.id}`;
