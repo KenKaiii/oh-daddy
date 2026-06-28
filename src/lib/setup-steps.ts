@@ -84,7 +84,7 @@ export const SETUP_STEPS: readonly SetupStepMeta[] = [
 	{
 		id: "webhooks",
 		title: "Webhooks",
-		summary: "Callback URL & verify token registered, fields subscribed.",
+		summary: "Subscribe the Page and Instagram objects to comment events.",
 		completion: { kind: "self" },
 	},
 	{

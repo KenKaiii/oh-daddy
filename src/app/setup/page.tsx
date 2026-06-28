@@ -496,16 +496,26 @@ export default function SetupPage() {
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
-							Generate a verify token, then in your app under{" "}
+							Generate a verify token, then open{" "}
 							{appId ? (
 								<ExtLink href={appWebhooksUrl(appId)}>Webhooks</ExtLink>
 							) : (
 								<>Webhooks</>
-							)}{" "}
-							paste the callback URL and the same token, and subscribe to{" "}
-							<strong>feed</strong> (Pages) and <strong>comments</strong>{" "}
-							(Instagram).
+							)}
+							. You'll set this up for two objects via the dropdown there — do
+							both so Facebook and Instagram comments both reach you.
 						</p>
+						<ul className="space-y-2 text-sm text-muted-foreground">
+							<li>
+								• <strong>Page</strong> object: paste the callback URL and
+								token, verify, then subscribe to the <strong>feed</strong>{" "}
+								field.
+							</li>
+							<li>
+								• <strong>Instagram</strong> object: same callback URL and
+								token, then subscribe to the <strong>comments</strong> field.
+							</li>
+						</ul>
 						<PasteField
 							label="Webhook Verify Token"
 							provider="meta_webhook_verify_token"
