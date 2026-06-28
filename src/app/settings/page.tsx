@@ -42,7 +42,7 @@ const FIELDS = [
 		provider: "meta_config_id",
 		label: "Meta Config ID",
 		placeholder: "Facebook Login for Business config id",
-		info: "Required. Create a configuration under Meta App, Facebook Login for Business, Configurations, pick your permissions there, then paste the Configuration ID here. Without it the connect flow fails with an Invalid Scopes error.",
+		info: "Found under Facebook Login for Business, Configurations. Create a configuration, then paste its Configuration ID here.",
 	},
 ] as const;
 
