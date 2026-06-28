@@ -1,3 +1,4 @@
+import { META_SCOPES } from "@/lib/oauth/scopes";
 import { getSettingsKey, requireSettingsKey } from "@/lib/settings";
 
 // ============================================================
@@ -28,20 +29,8 @@ function base64UrlEncode(array: Uint8Array): string {
 }
 
 // ============================================================
-// Meta scopes (fallback when no config_id is set)
+// Meta scopes (fallback when no config_id is set) — see ./scopes
 // ============================================================
-
-const META_SCOPES = [
-	"business_management",
-	"pages_manage_engagement",
-	"pages_manage_metadata",
-	"pages_read_user_content",
-	"pages_show_list",
-	"pages_messaging",
-	"instagram_basic",
-	"instagram_manage_comments",
-	"instagram_manage_messages",
-].join(",");
 
 function generateState(): string {
 	return crypto.randomUUID();
@@ -81,7 +70,7 @@ export async function buildMetaAuthUrl(
 		params.set("override_default_response_type", "true");
 	} else {
 		// Legacy flow — use scope + PKCE.
-		params.set("scope", META_SCOPES);
+		params.set("scope", META_SCOPES.join(","));
 		params.set("code_challenge", codeChallenge);
 		params.set("code_challenge_method", PKCE_CODE_CHALLENGE_METHOD);
 	}

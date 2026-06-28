@@ -8,6 +8,7 @@ import StaggeredMenu, {
 } from "@/components/StaggeredMenu";
 
 const menuItems: StaggeredMenuItem[] = [
+	{ label: "Setup", ariaLabel: "Open the guided setup", link: "/setup" },
 	{ label: "Dashboard", ariaLabel: "Go to the dashboard", link: "/" },
 	{
 		label: "Automations",
