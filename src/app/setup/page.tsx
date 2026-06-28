@@ -86,6 +86,23 @@ const PREREQUISITES: { key: string; label: ReactNode }[] = [
 	},
 ];
 
+// Use cases to add when creating the app. Selecting these is what grants the
+// underlying Pages/Instagram/Messenger permissions the connect flow needs.
+const USE_CASES: { title: string; detail: string }[] = [
+	{
+		title: "Engage with customers on Messenger from Meta",
+		detail: "Respond to messages sent to your Facebook Page.",
+	},
+	{
+		title: "Manage messaging & content on Instagram",
+		detail: "Respond to comments and direct messages via the Instagram API.",
+	},
+	{
+		title: "Manage everything on your Page",
+		detail: "Moderate posts and comments from followers on your Page.",
+	},
+];
+
 const TOTAL = SETUP_STEPS.length;
 const SELF_KEY = (id: SetupStepId) => `setup:step:${id}`;
 const APP_ID_KEY = "setup:appId";
@@ -308,15 +325,35 @@ export default function SetupPage() {
 				);
 			case "create-app":
 				return (
-					<p className="text-sm text-muted-foreground">
-						Open the{" "}
-						<ExtLink href={EXTERNAL_LINKS.appsDashboard}>
-							Meta app dashboard
-						</ExtLink>
-						, click <strong>Create App</strong>, choose the{" "}
-						<strong>Business</strong> type, and name it (e.g.{" "}
-						<strong>Oh Daddy</strong>).
-					</p>
+					<>
+						<p className="text-sm text-muted-foreground">
+							Open the{" "}
+							<ExtLink href={EXTERNAL_LINKS.appsDashboard}>
+								Meta app dashboard
+							</ExtLink>
+							, click <strong>Create App</strong>, choose the{" "}
+							<strong>Business</strong> type, and name it (e.g.{" "}
+							<strong>Oh Daddy</strong>).
+						</p>
+						<p className="text-sm text-muted-foreground">
+							When prompted for <strong>use cases</strong>, add all three below.
+							These grant the Pages, Instagram, and Messenger permissions the
+							connect step relies on.
+						</p>
+						<ul className="space-y-2">
+							{USE_CASES.map((u) => (
+								<li
+									key={u.title}
+									className="rounded-md border border-border/60 bg-muted/40 px-3 py-2"
+								>
+									<p className="text-sm font-medium text-foreground">
+										{u.title}
+									</p>
+									<p className="text-xs text-muted-foreground">{u.detail}</p>
+								</li>
+							))}
+						</ul>
+					</>
 				);
 			case "app-id":
 				return (
@@ -372,37 +409,46 @@ export default function SetupPage() {
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
-							Copy these into your app under{" "}
-							{appId ? (
-								<ExtLink href={appLoginSettingsUrl(appId)}>
-									Facebook Login for Business → Settings
-								</ExtLink>
-							) : (
-								<>Facebook Login for Business → Settings</>
-							)}{" "}
-							and{" "}
-							{appId ? (
-								<ExtLink href={appBasicSettingsUrl(appId)}>
-									App Settings → Basic
-								</ExtLink>
-							) : (
-								<>App Settings → Basic</>
-							)}
-							.
+							Two values go in two different places in your app. Copy each into
+							the spot named below, then save there.
 						</p>
 						<CopyField
 							label="Valid OAuth Redirect URI"
 							value={redirectUri}
 							hint={
-								isLocal
-									? "You're on localhost — Meta needs a public URL. Expose this with a tunnel (e.g. ngrok) and register that URL instead. Must match exactly."
-									: "Paste under Valid OAuth Redirect URIs. Must match exactly (scheme, host, path)."
+								<>
+									Add under{" "}
+									{appId ? (
+										<ExtLink href={appLoginSettingsUrl(appId)}>
+											Facebook Login for Business → Settings
+										</ExtLink>
+									) : (
+										<>Facebook Login for Business → Settings</>
+									)}{" "}
+									→ <strong>Valid OAuth Redirect URIs</strong>, then click{" "}
+									<strong>Save changes</strong>.{" "}
+									{isLocal
+										? "You're on localhost — Meta needs a public URL, so expose this with a tunnel (e.g. ngrok) and register that URL instead. Must match exactly."
+										: "Must match exactly (scheme, host, path)."}
+								</>
 							}
 						/>
 						<CopyField
 							label="App Domain"
 							value={appHost}
-							hint="Add under App Settings → Basic → App Domains."
+							hint={
+								<>
+									Add under{" "}
+									{appId ? (
+										<ExtLink href={appBasicSettingsUrl(appId)}>
+											App Settings → Basic
+										</ExtLink>
+									) : (
+										<>App Settings → Basic</>
+									)}{" "}
+									→ <strong>App Domains</strong>, then save.
+								</>
+							}
 						/>
 					</>
 				);
@@ -418,10 +464,15 @@ export default function SetupPage() {
 							) : (
 								<>Facebook Login for Business → Configurations</>
 							)}
-							, create a configuration with these permissions, then paste its{" "}
+							, create a configuration, then paste its{" "}
 							<strong>Configuration ID</strong> below.
 						</p>
 						<div className="space-y-1.5">
+							<p className="text-xs text-muted-foreground">
+								The use cases you added when creating the app already include
+								these permissions — confirm they're all selected on the
+								configuration:
+							</p>
 							<div className="flex flex-wrap gap-1.5">
 								{PERMISSION_LIST.map((p) => (
 									<span
