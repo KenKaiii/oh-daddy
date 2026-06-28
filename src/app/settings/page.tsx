@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
-import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,9 +49,6 @@ const FIELDS = [
 interface StatusRow {
 	provider: string;
 	is_set: boolean;
-	source: "db" | "env" | null;
-	env_only: boolean;
-	env_var: string;
 }
 
 export default function SettingsPage() {
@@ -60,8 +56,6 @@ export default function SettingsPage() {
 	const [status, setStatus] = useState<StatusRow[]>([]);
 	const [saving, setSaving] = useState(false);
 	const [appUrl, setAppUrl] = useState("");
-	const [generating, setGenerating] = useState(false);
-	const [generatedToken, setGeneratedToken] = useState<string | null>(null);
 
 	const load = useCallback(async () => {
 		try {
@@ -86,11 +80,8 @@ export default function SettingsPage() {
 	async function save() {
 		setSaving(true);
 		try {
-			const envOnly = new Set(
-				status.filter((s) => s.env_only).map((s) => s.provider),
-			);
 			const settings = Object.entries(values)
-				.filter(([provider, v]) => v.trim() !== "" && !envOnly.has(provider))
+				.filter(([, v]) => v.trim() !== "")
 				.map(([provider, value]) => ({ provider, value }));
 			if (settings.length === 0) {
 				notify.info("Nothing to save. Enter a value first.");
@@ -113,16 +104,14 @@ export default function SettingsPage() {
 		}
 	}
 
-	// The webhook verify token is env-managed (META_WEBHOOK_VERIFY_TOKEN) and
-	// cannot be written over HTTP. "Generate" simply mints a strong random value
-	// and reveals it once so the operator can paste it into their environment.
+	// "Generate" mints a strong random verify token straight into the input so
+	// the operator can review it and click Save. Use the same value in the Meta
+	// App webhook setup so the handshake matches.
 	function generateVerifyToken() {
-		setGenerating(true);
-		try {
-			setGeneratedToken(randomVerifyToken());
-		} finally {
-			setGenerating(false);
-		}
+		setValues((v) => ({
+			...v,
+			meta_webhook_verify_token: randomVerifyToken(),
+		}));
 	}
 
 	const webhookUrl = appUrl ? `${appUrl}/api/webhooks/meta` : "";
@@ -149,7 +138,6 @@ export default function SettingsPage() {
 					<CardContent className="space-y-4">
 						{FIELDS.map((f) => {
 							const s = statusFor(f.provider);
-							const envOnly = s?.env_only ?? false;
 							return (
 								<div key={f.provider} className="space-y-1.5">
 									<div className="flex items-center justify-between">
@@ -163,50 +151,28 @@ export default function SettingsPage() {
 													variant="outline"
 													size="sm"
 													onClick={generateVerifyToken}
-													disabled={generating}
 												>
-													{generating ? "Generating…" : "Generate"}
+													Generate
 												</Button>
 											)}
 											{s?.is_set ? (
-												<Badge variant="success">
-													Set{s.source === "env" ? " (env)" : ""}
-												</Badge>
+												<Badge variant="success">Set</Badge>
 											) : (
 												<Badge variant="muted">Not set</Badge>
 											)}
 										</span>
 									</div>
-									{envOnly ? (
-										<>
-											<Input
-												id={f.provider}
-												type="text"
-												readOnly
-												value=""
-												placeholder={`Managed via ${s?.env_var} (env var)`}
-											/>
-											<p className="text-xs text-muted-foreground">
-												For security this value is set only via the{" "}
-												<code className="font-mono">{s?.env_var}</code>{" "}
-												environment variable and can’t be edited here.
-											</p>
-										</>
-									) : (
-										<Input
-											id={f.provider}
-											type={f.provider.includes("secret") ? "password" : "text"}
-											value={values[f.provider] ?? ""}
-											onChange={(e) =>
-												setValues({ ...values, [f.provider]: e.target.value })
-											}
-											placeholder={
-												s?.is_set
-													? "•••••• (leave blank to keep)"
-													: f.placeholder
-											}
-										/>
-									)}
+									<Input
+										id={f.provider}
+										type={f.provider.includes("secret") ? "password" : "text"}
+										value={values[f.provider] ?? ""}
+										onChange={(e) =>
+											setValues({ ...values, [f.provider]: e.target.value })
+										}
+										placeholder={
+											s?.is_set ? "•••••• (leave blank to keep)" : f.placeholder
+										}
+									/>
 								</div>
 							);
 						})}
@@ -247,44 +213,13 @@ export default function SettingsPage() {
 							</span>
 							<code className="block rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs">
 								{verifyToken?.is_set
-									? "Uses META_WEBHOOK_VERIFY_TOKEN from the environment"
-									: "Set META_WEBHOOK_VERIFY_TOKEN in the environment first"}
+									? "Saved — matched on each webhook handshake"
+									: "Set the Webhook Verify Token above first"}
 							</code>
 						</div>
 					</CardContent>
 				</Card>
 			</div>
-
-			<Dialog
-				open={generatedToken !== null}
-				onClose={() => setGeneratedToken(null)}
-				className="max-w-md"
-			>
-				<DialogHeader
-					title="Your webhook verify token"
-					description="A fresh random token. Copy it into your environment as META_WEBHOOK_VERIFY_TOKEN — it isn't saved anywhere for you."
-				/>
-				<div className="flex items-center gap-2 rounded-lg border border-border bg-muted p-3">
-					<code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs text-foreground">
-						{generatedToken}
-					</code>
-					<CopyButton
-						value={generatedToken ?? ""}
-						label="Copy"
-						className="shrink-0"
-					/>
-				</div>
-				<p className="mt-3 text-xs text-muted-foreground">
-					Set it as <code className="font-mono">META_WEBHOOK_VERIFY_TOKEN</code>{" "}
-					in your environment, then paste the same value into your Meta App
-					webhook setup so the handshake matches.
-				</p>
-				<DialogFooter>
-					<Button onClick={() => setGeneratedToken(null)}>
-						Done, I saved it
-					</Button>
-				</DialogFooter>
-			</Dialog>
 		</div>
 	);
 }

@@ -7,15 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-/** Read the post-login redirect target, restricted to same-origin paths. */
-function safeNextPath(): string {
-	if (typeof window === "undefined") return "/";
-	const raw = new URLSearchParams(window.location.search).get("next");
-	// Only allow absolute, single-slash paths to avoid open-redirects.
-	if (raw?.startsWith("/") && !raw.startsWith("//")) return raw;
-	return "/";
-}
-
 export default function LoginPage() {
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -33,7 +24,8 @@ export default function LoginPage() {
 			});
 			const json = await res.json().catch(() => ({}));
 			if (!res.ok) throw new Error(json.error ?? "Login failed");
-			window.location.href = safeNextPath();
+			// Always land on the dashboard after a successful login.
+			window.location.href = "/";
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Login failed");
 			setSubmitting(false);

@@ -212,18 +212,20 @@ verification, so session auth would break them):
 - `/api/inngest` — Inngest's own request-signature verification; called by the
   external Inngest service.
 
-`META_APP_SECRET` and `META_WEBHOOK_VERIFY_TOKEN` are **env-only**: they are
-never read from or writable via the DB/Settings UI, so a `PUT /api/settings`
-can't overwrite the secret that signs webhooks (security finding BP-001).
+All Meta credentials (App ID, App Secret, Verify Token, Config ID) can be set
+from the **Settings UI** or via env vars as a fallback. DB-stored values are
+encrypted at rest (AES-256-GCM). `PUT /api/settings` requires the operator
+session (the `ADMIN_PASSWORD` proxy gate + `requireOperator`), so an anonymous
+caller can never overwrite the secret that signs webhooks.
 
 ## Known limitations / security follow-ups
 
 - **Single shared-secret auth** — one operator password, no per-user accounts.
   Fine for a single-tenant deploy; add real user auth for multi-tenant.
 - **Secrets at rest** — live Meta access tokens and DB-stored Settings values
-  are encrypted with AES-256-GCM (`APP_ENCRYPTION_KEY`); the integrity-gating
-  secrets (`META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`) are env-only and
-  never touch the DB. The key itself lives only in the environment — if it
+  (including `meta_app_secret` / `meta_webhook_verify_token`) are encrypted with
+  AES-256-GCM (`APP_ENCRYPTION_KEY`). Writes go through the operator-gated
+  `PUT /api/settings`. The key itself lives only in the environment — if it
   leaks, rotate it and re-issue all tokens (reconnect accounts).
 - **No automation caps** — could exceed Meta's ~200 comments/hour Graph ceiling
   under load. Add sliding-window caps before scaling.

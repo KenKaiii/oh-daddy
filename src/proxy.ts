@@ -10,8 +10,8 @@
  * token), compared in constant time — see `src/lib/auth.ts`.
  *
  * Exemptions (each must be internet-reachable AND carries its own verification):
- *   - /api/webhooks/meta   → HMAC `x-hub-signature-256` keyed on the env-only
- *                            `META_APP_SECRET` (verified in the route).
+ *   - /api/webhooks/meta   → HMAC `x-hub-signature-256` keyed on
+ *                            `meta_app_secret` (verified in the route).
  *   - /api/oauth/callback  → one-time, server-generated `oauth_state` CSRF token;
  *                            that state can only be minted by the now-gated
  *                            `POST /api/oauth/authorize`.
