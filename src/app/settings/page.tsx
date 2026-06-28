@@ -115,12 +115,16 @@ export default function SettingsPage() {
 	}
 
 	const webhookUrl = appUrl ? `${appUrl}/api/webhooks/meta` : "";
+	const redirectUri = appUrl ? `${appUrl}/oauth/callback` : "";
 	const verifyToken = statusFor("meta_webhook_verify_token");
 	// localhost needs a public tunnel; a deployed domain is already reachable.
 	const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(appUrl);
 	const callbackInfo = isLocal
 		? "Paste this into your Meta App, Webhooks as the callback URL. You're on localhost, so expose it first with a tunnel like ngrok and use that URL instead."
 		: "Paste this into your Meta App, Webhooks as the callback URL. It points at this deployment, so it's ready to use as-is.";
+	const redirectInfo = isLocal
+		? "Add this exact URL under Meta App, Facebook Login, Settings as a Valid OAuth Redirect URI. You're on localhost, so whitelist this localhost URL (or your tunnel URL if you connect through one)."
+		: "Add this exact URL under Meta App, Facebook Login, Settings as a Valid OAuth Redirect URI. It must match exactly (scheme, host, and path) or the connect flow is rejected.";
 
 	return (
 		<div className="space-y-6">
@@ -185,12 +189,30 @@ export default function SettingsPage() {
 
 				<Card className="glass-hover">
 					<CardHeader>
-						<CardTitle>Webhook configuration</CardTitle>
+						<CardTitle>Meta App configuration</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-4 text-sm">
 						<div className="space-y-1.5">
 							<span className="flex items-center gap-1.5">
-								<Label>Callback URL</Label>
+								<Label>OAuth Redirect URI</Label>
+								<InfoTip text={redirectInfo} />
+							</span>
+							<div className="group relative">
+								<Input
+									readOnly
+									value={redirectUri}
+									placeholder="…"
+									className="pr-20 font-mono text-xs"
+								/>
+								<CopyButton
+									value={redirectUri}
+									className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100"
+								/>
+							</div>
+						</div>
+						<div className="space-y-1.5">
+							<span className="flex items-center gap-1.5">
+								<Label>Webhook Callback URL</Label>
 								<InfoTip text={callbackInfo} />
 							</span>
 							<div className="group relative">
