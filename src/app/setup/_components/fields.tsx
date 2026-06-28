@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,8 +38,12 @@ export function ExtLink({
 }
 
 /**
- * A single acknowledgement checkbox row. The checkbox is the only toggle target
- * (the text may contain its own links), so clicking a link never flips the box.
+ * A single acknowledgement checkbox row with an animated check (ported from a
+ * Uiverse component by MattiaCode-IT; styles live in globals.css under the
+ * `.checkbox-*` classes, tuned for the dark theme).
+ *
+ * The label associates to the input via `htmlFor`, so per the HTML spec a click
+ * on an interactive descendant (the inline links) navigates without toggling.
  */
 export function CheckItem({
 	checked,
@@ -50,15 +54,29 @@ export function CheckItem({
 	onChange: (checked: boolean) => void;
 	children: ReactNode;
 }) {
+	const id = useId();
 	return (
-		<div className="flex items-start gap-3">
+		<div className="checkbox-container">
 			<input
 				type="checkbox"
+				id={id}
+				className="task-checkbox"
 				checked={checked}
 				onChange={(e) => onChange(e.target.checked)}
-				className="ring-focus mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-border accent-[#6d6dfb]"
 			/>
-			<span className="text-sm">{children}</span>
+			<label htmlFor={id} className="checkbox-label">
+				<span className="checkbox-box">
+					<span className="checkbox-fill" />
+					<span className="checkmark">
+						<svg viewBox="0 0 24 24" className="check-icon" aria-hidden="true">
+							<title>Confirmed</title>
+							<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+						</svg>
+					</span>
+					<span className="success-ripple" />
+				</span>
+				<span className="checkbox-text">{children}</span>
+			</label>
 		</div>
 	);
 }
