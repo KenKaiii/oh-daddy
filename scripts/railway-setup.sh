@@ -9,19 +9,21 @@
 # untouched — in particular APP_ENCRYPTION_KEY is NEVER regenerated, because
 # that would orphan every already-encrypted token.
 #
-# Human-only inputs are passed in as environment variables (the .gg/setup-
-# railway command collects them first). Secrets are written to Railway via
-# stdin, never via argv, so they don't leak into `ps`/shell history.
+# Secrets are written to Railway via stdin, never via argv, so they don't leak
+# into `ps`/shell history.
+#
+# Meta/Instagram credentials are NOT handled here. Every connect credential
+# (meta_app_id/secret/config_id, meta_webhook_verify_token, instagram_app_id/
+# secret) is entered through the in-app Settings page / Setup wizard after the
+# first login, stored DB-first and encrypted at rest. This script only
+# provisions infrastructure and the two genuinely env-only secrets
+# (APP_ENCRYPTION_KEY, ADMIN_PASSWORD).
 #
 # Inngest is SELF-HOSTED (not Inngest Cloud): a separate Railway service runs
 # the `inngest` server (Postgres + Redis backed), and the app's SDK is wired to
 # it via INNGEST_BASE_URL + a shared signing/event key pair generated here.
 #
-# Required env in:
-#   META_APP_ID
-#   META_APP_SECRET
 # Optional env in:
-#   META_CONFIG_ID            (Facebook Login for Business)
 #   RAILWAY_WORKSPACE         (workspace id/name; required if you have >1)
 #   INNGEST_BASE_URL          (self-hosted Inngest server URL; if the Inngest
 #                              service isn't provisioned yet, leave unset and
@@ -54,8 +56,6 @@ command -v railway >/dev/null || die "railway CLI not found. Install: https://do
 command -v openssl >/dev/null || die "openssl not found."
 command -v node    >/dev/null || die "node not found."
 railway whoami >/dev/null 2>&1 || die "Not logged in. Run: railway login"
-[ -n "${META_APP_ID:-}" ]     || die "META_APP_ID is required (set it before running)."
-[ -n "${META_APP_SECRET:-}" ] || die "META_APP_SECRET is required (set it before running)."
 
 ok "Logged in to Railway as $(railway whoami 2>/dev/null | tail -1)"
 
@@ -132,22 +132,9 @@ else
   ok "ADMIN_PASSWORD generated."
 fi
 
-# ── META_WEBHOOK_VERIFY_TOKEN — generate if missing, surface to the user ─────
-VERIFY_TOKEN_TO_SHOW=""
-if has_var META_WEBHOOK_VERIFY_TOKEN; then
-  VERIFY_TOKEN_TO_SHOW="$(printf '%s\n' "$EXISTING_VARS" | sed -n 's/^META_WEBHOOK_VERIFY_TOKEN=//p')"
-  ok "META_WEBHOOK_VERIFY_TOKEN already set."
-else
-  VERIFY_TOKEN_TO_SHOW="$(openssl rand -hex 16)"
-  set_secret META_WEBHOOK_VERIFY_TOKEN "$VERIFY_TOKEN_TO_SHOW"
-  ok "META_WEBHOOK_VERIFY_TOKEN generated."
-fi
-
-# ── Meta app credentials (from the user) ─────────────────────────────────────
-set_secret META_APP_SECRET "$META_APP_SECRET"
-set_plain  META_APP_ID "$META_APP_ID"
-[ -n "${META_CONFIG_ID:-}" ] && set_plain META_CONFIG_ID "$META_CONFIG_ID"
-ok "Meta credentials set."
+# Meta/Instagram connect credentials are intentionally NOT set here — they are
+# entered through the in-app Settings page / Setup wizard (DB-first, encrypted),
+# including the webhook verify token (generated in the wizard).
 
 # ── Inngest (SELF-HOSTED) — provision the server, then wire the app to it ─────
 # The "$INNGEST_SVC" service runs the inngest server (with its own Postgres +
@@ -268,10 +255,11 @@ if [ -n "$DASH_PW_TO_SHOW" ]; then
   echo "  (it is stored in Railway as ADMIN_PASSWORD; this is your only plaintext copy)"
   echo
 fi
-printf '\033[1;36mDo these in the Meta App dashboard (only you can — no API):\033[0m\n'
-echo "  1. Valid OAuth Redirect URI:   ${APP_URL:-https://<your-domain>}/oauth/callback"
-echo "  2. Webhooks → Callback URL:    ${APP_URL:-https://<your-domain>}/api/webhooks/meta"
-echo "     Webhooks → Verify token:    $VERIFY_TOKEN_TO_SHOW"
-echo "     Subscribe fields:           feed, messages"
+printf '\033[1;36mNext: sign in and finish setup in the app (no env/CLI needed):\033[0m\n'
+echo "  1. Open ${APP_URL:-<app-url>}/login and sign in with the password above."
+echo "  2. Follow /setup — paste your Instagram (and optional Facebook) app"
+echo "     credentials there; they're stored encrypted in the database."
+echo "  3. The wizard generates the webhook verify token and shows the exact"
+echo "     redirect + callback URLs to register in the Meta App dashboard."
 echo
-echo "Then sign in at ${APP_URL:-<app-url>}/login and connect your Meta accounts."
+echo "All connect credentials live in Settings — nothing to add to Railway by hand."
