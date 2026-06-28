@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { encryptToken } from "@/lib/crypto";
 import { getDb } from "@/lib/db";
+import { getRedirectUri } from "@/lib/oauth/base-url";
 import { OAUTH_STATE_COOKIE } from "@/lib/oauth/constants";
 import {
 	type DiscoveredAccount,
@@ -86,8 +87,7 @@ export async function POST(request: Request) {
 	}
 
 	const sql = getDb();
-	const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-	const redirectUri = `${baseUrl}/oauth/callback`;
+	const redirectUri = getRedirectUri(request);
 
 	// Atomically claim the flow: a single UPDATE matches the account by
 	// oauth_state AND clears that token in one statement, so the state is
