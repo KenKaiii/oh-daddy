@@ -15,7 +15,7 @@ const variants: Record<Variant, string> = {
 	// Single solid-violet activation element per view — the main CTA.
 	// Gradient fill; violet glow appears only on hover.
 	primary:
-		"bg-gradient-to-b from-[var(--primary-hover)] to-primary text-primary-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] hover:shadow-[0_10px_28px_-6px_var(--primary),inset_0_1px_0_0_rgba(255,255,255,0.25)] hover:brightness-110",
+		"bg-gradient-to-b from-[var(--primary-hover)] to-primary text-primary-foreground shadow-[0_10px_28px_-6px_transparent,inset_0_1px_0_0_rgba(255,255,255,0.18)] hover:shadow-[0_10px_28px_-6px_var(--primary),inset_0_1px_0_0_rgba(255,255,255,0.25)] hover:brightness-110",
 	// Secondary action — Midnight Ink fill.
 	ink: "bg-ink text-ink-foreground shadow-sm hover:bg-black hover:shadow-md",
 	// Neutral secondary — translucent glass w/ hairline border.
@@ -26,7 +26,7 @@ const variants: Record<Variant, string> = {
 	destructive: "text-destructive hover:bg-destructive/10",
 	// Solid destructive — confirmation CTAs. Red glow only on hover.
 	danger:
-		"bg-destructive text-destructive-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.18)] hover:shadow-[0_10px_28px_-6px_var(--destructive),inset_0_1px_0_0_rgba(255,255,255,0.25)] hover:brightness-110",
+		"bg-destructive text-destructive-foreground shadow-[0_10px_28px_-6px_transparent,inset_0_1px_0_0_rgba(255,255,255,0.18)] hover:shadow-[0_10px_28px_-6px_var(--destructive),inset_0_1px_0_0_rgba(255,255,255,0.25)] hover:brightness-110",
 };
 
 const sizes: Record<Size, string> = {

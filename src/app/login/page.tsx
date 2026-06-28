@@ -44,7 +44,12 @@ export default function LoginPage() {
 		<div className="flex min-h-dvh items-center justify-center py-12">
 			<Card className="glass-hover w-full max-w-sm">
 				<CardHeader>
-					<CardTitle>Oh yeah daddy</CardTitle>
+					<CardTitle>
+						Sign in to{" "}
+						<span className="brand-shimmer font-display font-bold">
+							Oh Daddy
+						</span>
+					</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<form onSubmit={submit} className="space-y-4">
