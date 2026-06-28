@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 		return Response.json(
 			{
 				error:
-					"Server auth is not configured. Set DASHBOARD_PASSWORD in the environment.",
+					"Server auth is not configured. Set ADMIN_PASSWORD in the environment.",
 			},
 			{ status: 503 },
 		);

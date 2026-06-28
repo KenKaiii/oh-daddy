@@ -124,7 +124,7 @@ In particular:
   Meta account to re-issue tokens). Railway persists variables across deploys,
   so a redeploy alone is safe. It is read lazily at runtime, so `next build`
   succeeds even if it's unset at build time.
-- `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`, `DASHBOARD_PASSWORD`,
+- `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`, `ADMIN_PASSWORD`,
   `DATABASE_URL` -> Railway-managed; never committed.
 - **Self-hosted Inngest:** remove `INNGEST_DEV`, run a self-hosted `inngest`
   server (e.g. the "Inngest Production Template"), and set `INNGEST_BASE_URL`,
@@ -193,15 +193,15 @@ Every `/api/*` route is gated by `src/proxy.ts` (Next.js 16's renamed
 `middleware`). Set a shared secret in the environment:
 
 ```
-DASHBOARD_PASSWORD=some-long-random-string
+ADMIN_PASSWORD=some-long-random-string
 ```
 
 - **Browser:** visit `/login`, enter the password — you get an httpOnly session
   cookie and the dashboard works as normal.
-- **Programmatic:** send `Authorization: Bearer <DASHBOARD_PASSWORD>`.
+- **Programmatic:** send `Authorization: Bearer <ADMIN_PASSWORD>`.
 
 Both are compared in constant time (`crypto.timingSafeEqual`). If
-`DASHBOARD_PASSWORD` is unset, protected API routes return **503** (fail closed).
+`ADMIN_PASSWORD` is unset, protected API routes return **503** (fail closed).
 
 **Exempt** routes (each must be internet-reachable and carries its own
 verification, so session auth would break them):

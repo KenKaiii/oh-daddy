@@ -9,7 +9,7 @@
  *   2. Programmatic / curl → an `Authorization: Bearer <secret>` header.
  *
  * Both are compared to the configured secret in constant time. The secret lives
- * ONLY in the environment (`DASHBOARD_PASSWORD`); it is never written to or read
+ * ONLY in the environment (`ADMIN_PASSWORD`); it is never written to or read
  * from the database, so it cannot be overwritten over HTTP.
  *
  * This module is intentionally dependency-free (only `node:crypto`) so it is
@@ -28,7 +28,7 @@ export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
  * Returns null when unset so callers can fail closed.
  */
 export function getAuthSecret(): string | null {
-	const secret = process.env.DASHBOARD_PASSWORD;
+	const secret = process.env.ADMIN_PASSWORD;
 	return secret?.trim() ? secret : null;
 }
 

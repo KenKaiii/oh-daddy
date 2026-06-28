@@ -122,14 +122,14 @@ else
   ok "APP_ENCRYPTION_KEY set. It lives ONLY in Railway — back it up if you need DR."
 fi
 
-# ── DASHBOARD_PASSWORD — generate if missing, surface to the user ────────────
+# ── ADMIN_PASSWORD — generate if missing, surface to the user ────────────
 DASH_PW_TO_SHOW=""
-if has_var DASHBOARD_PASSWORD; then
-  ok "DASHBOARD_PASSWORD already set — left untouched."
+if has_var ADMIN_PASSWORD; then
+  ok "ADMIN_PASSWORD already set — left untouched."
 else
   DASH_PW_TO_SHOW="$(openssl rand -base64 24)"
-  set_secret DASHBOARD_PASSWORD "$DASH_PW_TO_SHOW"
-  ok "DASHBOARD_PASSWORD generated."
+  set_secret ADMIN_PASSWORD "$DASH_PW_TO_SHOW"
+  ok "ADMIN_PASSWORD generated."
 fi
 
 # ── META_WEBHOOK_VERIFY_TOKEN — generate if missing, surface to the user ─────
@@ -265,7 +265,7 @@ printf '\033[1;32m━━━ oh-daddy is deployed ━━━\033[0m\n'
 echo
 if [ -n "$DASH_PW_TO_SHOW" ]; then
   printf '\033[1;33mSAVE THIS — dashboard login password:\033[0m %s\n' "$DASH_PW_TO_SHOW"
-  echo "  (it is stored in Railway as DASHBOARD_PASSWORD; this is your only plaintext copy)"
+  echo "  (it is stored in Railway as ADMIN_PASSWORD; this is your only plaintext copy)"
   echo
 fi
 printf '\033[1;36mDo these in the Meta App dashboard (only you can — no API):\033[0m\n'

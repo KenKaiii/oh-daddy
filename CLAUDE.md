@@ -20,10 +20,10 @@ Next.js 16 (App Router) · React 19 · TypeScript · raw `postgres` (porsager, n
 - **DB:** `getDb()` from `src/lib/db.ts` (lazy single pool). 8 tables + row types hand-written in `src/types/db.ts`. Unique-violation = code `23505`.
 
 ## Project-specific constraints
-- **Auth:** every `/api/*` is gated by `src/proxy.ts` (Next 16's renamed middleware), fails closed (503) without `DASHBOARD_PASSWORD`. Exempt + self-verifying: `/api/webhooks/meta`, `/api/oauth/callback`, `/api/inngest`, `/api/auth/login`. Destructive routes also call `requireOperator` from `src/lib/api-auth.ts`. Auth logic in `src/lib/auth.ts` must stay dependency-free (only `node:crypto`) since `proxy.ts` imports it.
+- **Auth:** every `/api/*` is gated by `src/proxy.ts` (Next 16's renamed middleware), fails closed (503) without `ADMIN_PASSWORD`. Exempt + self-verifying: `/api/webhooks/meta`, `/api/oauth/callback`, `/api/inngest`, `/api/auth/login`. Destructive routes also call `requireOperator` from `src/lib/api-auth.ts`. Auth logic in `src/lib/auth.ts` must stay dependency-free (only `node:crypto`) since `proxy.ts` imports it.
 - **Secrets at rest:** `src/lib/crypto.ts` does AES-256-GCM envelope encryption (`enc:v1:<base64(iv|tag|ciphertext)>`) keyed by `APP_ENCRYPTION_KEY`. Access tokens (`encryptToken`) and DB settings values (`encryptSecret`) are encrypted; decrypt only at point-of-use in memory — Inngest step state stores the encrypted blob, never plaintext. `db/encrypt-existing-secrets.mjs` duplicates this format and must stay in lockstep.
 - **Token sentinels** (`""`, `"pending"`, `mock-*`) are stored verbatim, not encrypted — SQL literal comparisons in `meta-discovery.ts`/`api/stats` depend on this.
-- **Env-only, never in DB** (BP-001): `meta_app_secret`, `meta_webhook_verify_token`, `DASHBOARD_PASSWORD`, `APP_ENCRYPTION_KEY`. `getSettingsKey`/`api/settings` enforce this. `meta_app_id`/`meta_config_id` may be DB-stored (encrypted) or env.
+- **Env-only, never in DB** (BP-001): `meta_app_secret`, `meta_webhook_verify_token`, `ADMIN_PASSWORD`, `APP_ENCRYPTION_KEY`. `getSettingsKey`/`api/settings` enforce this. `meta_app_id`/`meta_config_id` may be DB-stored (encrypted) or env.
 - **`dm_link`** is host-allowlisted via `DM_LINK_ALLOWED_HOSTS` (BP-002, `src/lib/schemas/automation.ts`) — auto-sent DMs would otherwise be a phishing relay.
 - **Inngest is self-hosted in prod** (not Inngest Cloud): unset `INNGEST_DEV`, set `INNGEST_BASE_URL` + matching `INNGEST_SIGNING_KEY`/`INNGEST_EVENT_KEY`.
 - No test suite exists.

@@ -44,12 +44,12 @@ export default function LoginPage() {
 		<div className="flex min-h-dvh items-center justify-center py-12">
 			<Card className="glass-hover w-full max-w-sm">
 				<CardHeader>
-					<CardTitle>Sign in</CardTitle>
+					<CardTitle>Oh yeah daddy</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<form onSubmit={submit} className="space-y-4">
-						<div className="space-y-2.5">
-							<Label htmlFor="password">Dashboard password</Label>
+						<div className="flex flex-col gap-2.5">
+							<Label htmlFor="password">Admin password</Label>
 							<Input
 								id="password"
 								type="password"
@@ -62,7 +62,7 @@ export default function LoginPage() {
 						</div>
 						{error && <p className="text-sm text-destructive">{error}</p>}
 						<Button type="submit" disabled={submitting} className="w-full">
-							{submitting ? "Signing in…" : "Sign in"}
+							{submitting ? "Signing in…" : "Oh yeah daddy"}
 						</Button>
 						<p className="text-xs text-muted-foreground">
 							Authenticated personnel only.
