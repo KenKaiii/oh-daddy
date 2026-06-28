@@ -19,7 +19,6 @@ import {
 	appWebhooksUrl,
 	EXTERNAL_LINKS,
 	PERMISSION_LIST,
-	PERMISSION_LIST_TEXT,
 	SETUP_STEPS,
 	type SetupStepId,
 } from "@/lib/setup-steps";
@@ -483,10 +482,6 @@ export default function SetupPage() {
 									</span>
 								))}
 							</div>
-							<CopyField
-								label="Permissions (copy all)"
-								value={PERMISSION_LIST_TEXT}
-							/>
 						</div>
 						<PasteField
 							label="Meta Config ID"

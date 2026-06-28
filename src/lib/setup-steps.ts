@@ -136,11 +136,8 @@ export function appLoginConfigurationsUrl(appId: string): string {
 }
 
 // ============================================================
-// Copyable permission list for the FLB configuration step.
+// Permission checklist shown on the FLB configuration step.
 // ============================================================
 
-/** The permissions to enable on the Login-for-Business configuration. */
+/** The permissions to confirm are selected on the Login-for-Business config. */
 export const PERMISSION_LIST: readonly string[] = META_SCOPES;
-
-/** Comma-joined permissions, for the copy button. */
-export const PERMISSION_LIST_TEXT: string = META_SCOPES.join(",");
