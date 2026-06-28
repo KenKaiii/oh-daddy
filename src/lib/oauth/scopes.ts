@@ -16,3 +16,16 @@ export const META_SCOPES = [
 	"instagram_manage_comments",
 	"instagram_manage_messages",
 ] as const;
+
+/**
+ * Scopes for the Instagram-login flow ("Instagram API with Instagram login").
+ * These are distinct from the Facebook-login `instagram_*` permissions above:
+ * the user authenticates directly with their Instagram professional account at
+ * `instagram.com/oauth/authorize` — no Facebook Page or Business required.
+ * @see https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login
+ */
+export const INSTAGRAM_LOGIN_SCOPES = [
+	"instagram_business_basic",
+	"instagram_business_manage_comments",
+	"instagram_business_manage_messages",
+] as const;

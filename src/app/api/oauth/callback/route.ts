@@ -5,6 +5,7 @@ import { encryptToken } from "@/lib/crypto";
 import { getDb } from "@/lib/db";
 import { getRedirectUri } from "@/lib/oauth/base-url";
 import { OAUTH_STATE_COOKIE } from "@/lib/oauth/constants";
+import { discoverInstagramAccount } from "@/lib/platforms/instagram-discovery";
 import {
 	type DiscoveredAccount,
 	discoverMetaAccounts,
@@ -49,6 +50,79 @@ async function exchangeMetaToken(
 		throw new Error("Meta token exchange failed");
 	}
 	return response.json();
+}
+
+/**
+ * Exchange an Instagram-login authorization code for a long-lived IG-User token.
+ *
+ * Two-step per Meta's Instagram Business Login: a form POST to
+ * `api.instagram.com/oauth/access_token` yields a short-lived token + the IG
+ * user id, then a GET to `graph.instagram.com/access_token` (grant_type
+ * `ig_exchange_token`) trades it for a ~60-day long-lived token.
+ */
+async function exchangeInstagramToken(
+	code: string,
+	redirectUri: string,
+): Promise<{ access_token: string; user_id: string; expires_in?: number }> {
+	const [igAppId, igAppSecret] = await Promise.all([
+		requireSettingsKey("instagram_app_id"),
+		requireSettingsKey("instagram_app_secret"),
+	]);
+
+	// 1. Short-lived token (form POST).
+	const shortRes = await fetch("https://api.instagram.com/oauth/access_token", {
+		method: "POST",
+		headers: { "Content-Type": "application/x-www-form-urlencoded" },
+		body: new URLSearchParams({
+			client_id: igAppId,
+			client_secret: igAppSecret,
+			grant_type: "authorization_code",
+			redirect_uri: redirectUri,
+			code,
+		}).toString(),
+	});
+
+	if (!shortRes.ok) {
+		console.error(
+			`Instagram token exchange failed (${shortRes.status}):`,
+			await shortRes.text(),
+		);
+		throw new Error("Instagram token exchange failed");
+	}
+
+	const shortData = (await shortRes.json()) as {
+		access_token: string;
+		user_id: number | string;
+	};
+
+	// 2. Long-lived token (~60d) via graph.instagram.com.
+	const llParams = new URLSearchParams({
+		grant_type: "ig_exchange_token",
+		client_secret: igAppSecret,
+		access_token: shortData.access_token,
+	});
+	const llRes = await fetch(
+		`https://graph.instagram.com/access_token?${llParams.toString()}`,
+	);
+
+	if (!llRes.ok) {
+		console.error(
+			`Instagram long-lived token exchange failed (${llRes.status}):`,
+			await llRes.text(),
+		);
+		throw new Error("Instagram token exchange failed");
+	}
+
+	const llData = (await llRes.json()) as {
+		access_token: string;
+		expires_in?: number;
+	};
+
+	return {
+		access_token: llData.access_token,
+		user_id: String(shortData.user_id),
+		expires_in: llData.expires_in,
+	};
 }
 
 const callbackSchema = z
@@ -141,10 +215,18 @@ export async function POST(request: Request) {
 	const platform = account.platform as PlatformType;
 	const storedCodeVerifier = (metadata.oauth_code_verifier as string) ?? "";
 
-	// Exchange the code for an access token.
-	let tokenData: { access_token: string; expires_in?: number };
+	// Exchange the code for an access token. Instagram-login and Facebook-login
+	// use entirely different token endpoints and app credentials.
+	let tokenData: {
+		access_token: string;
+		expires_in?: number;
+		user_id?: string;
+	};
 	try {
-		tokenData = await exchangeMetaToken(code, redirectUri, storedCodeVerifier);
+		tokenData =
+			platform === "instagram"
+				? await exchangeInstagramToken(code, redirectUri)
+				: await exchangeMetaToken(code, redirectUri, storedCodeVerifier);
 	} catch (tokenError) {
 		console.error("Token exchange error:", tokenError);
 		return Response.json({ error: "Token exchange failed" }, { status: 502 });
@@ -167,16 +249,25 @@ export async function POST(request: Request) {
 		...cleanMetadata
 	} = metadata;
 
-	// Discover all Pages + IG accounts the user granted access to.
+	// Discover accounts the token grants access to. Facebook → Pages from
+	// /me/accounts; Instagram → the single IG account behind the IG-User token.
 	let discoveredAccounts: DiscoveredAccount[] = [];
 	try {
-		discoveredAccounts = await discoverMetaAccounts(
-			tokenData.access_token,
-			account.account_id,
-			account.id,
-		);
+		discoveredAccounts =
+			platform === "instagram"
+				? await discoverInstagramAccount(
+						tokenData.access_token,
+						tokenData.user_id ?? "",
+						account.id,
+						tokenExpiresAt,
+					)
+				: await discoverMetaAccounts(
+						tokenData.access_token,
+						account.account_id,
+						account.id,
+					);
 	} catch (discoveryError) {
-		console.error("Meta account discovery failed:", discoveryError);
+		console.error("Account discovery failed:", discoveryError);
 	}
 
 	const triggeringWasDiscovered = discoveredAccounts.some(

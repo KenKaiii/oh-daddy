@@ -124,14 +124,30 @@ async function verifySignature(
 	body: string,
 	signature: string | null,
 ): Promise<boolean> {
-	const appSecret = await getSettingsKey("meta_app_secret");
-	if (!appSecret) {
-		throw new Error(
-			"meta_app_secret is not configured — webhook verification failed",
-		);
+	if (!signature) return false;
+
+	// Instagram-login and Facebook-login webhooks are HMAC-signed with DIFFERENT
+	// app secrets. Pick the secret by the payload `object` so each platform
+	// verifies against its own app: `instagram` → instagram_app_secret,
+	// `page` → meta_app_secret. Parse the raw body once for routing only; the
+	// HMAC is still computed over the exact raw string.
+	let object: unknown;
+	try {
+		object = (JSON.parse(body) as { object?: unknown }).object;
+	} catch {
+		return false;
 	}
 
-	if (!signature) return false;
+	const provider =
+		object === "instagram" ? "instagram_app_secret" : "meta_app_secret";
+	const appSecret = await getSettingsKey(provider);
+	if (!appSecret) {
+		console.error(
+			`${provider} is not configured — webhook verification failed`,
+		);
+		return false;
+	}
+
 	const expected = `sha256=${crypto
 		.createHmac("sha256", appSecret)
 		.update(body)

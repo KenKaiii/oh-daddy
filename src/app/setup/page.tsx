@@ -14,10 +14,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
 import {
 	appBasicSettingsUrl,
+	appInstagramSetupUrl,
 	appLoginConfigurationsUrl,
 	appLoginSettingsUrl,
 	appWebhooksUrl,
 	EXTERNAL_LINKS,
+	INSTAGRAM_PERMISSION_LIST,
 	PERMISSION_LIST,
 	SETUP_STEPS,
 	type SetupStepId,
@@ -41,64 +43,27 @@ interface StatusRow {
 // Prerequisites the operator must confirm (checkbox each) before continuing.
 const PREREQUISITES: { key: string; label: ReactNode }[] = [
 	{
-		key: "fb-account",
-		label: (
-			<>
-				A{" "}
-				<ExtLink href={EXTERNAL_LINKS.facebookSignup}>Facebook account</ExtLink>
-				.
-			</>
-		),
-	},
-	{
-		key: "fb-page",
-		label: (
-			<>
-				A <ExtLink href={EXTERNAL_LINKS.createPage}>Facebook Page</ExtLink> you
-				manage.
-			</>
-		),
-	},
-	{
 		key: "ig-business",
 		label: (
 			<>
-				For Instagram: an{" "}
+				An{" "}
 				<ExtLink href={EXTERNAL_LINKS.instagramBusiness}>
-					Instagram Business or Creator account
+					Instagram professional account
 				</ExtLink>{" "}
-				linked to that Page.
+				(Business or Creator). This is all you need for Instagram.
 			</>
 		),
 	},
 	{
-		key: "business-portfolio",
+		key: "fb-account",
 		label: (
 			<>
-				A{" "}
-				<ExtLink href={EXTERNAL_LINKS.businessPortfolio}>
-					Meta Business portfolio
-				</ExtLink>
-				.
+				Optional, for Facebook Pages: a{" "}
+				<ExtLink href={EXTERNAL_LINKS.facebookSignup}>Facebook account</ExtLink>{" "}
+				and a <ExtLink href={EXTERNAL_LINKS.createPage}>Page</ExtLink> you
+				manage.
 			</>
 		),
-	},
-];
-
-// Use cases to add when creating the app. Selecting these is what grants the
-// underlying Pages/Instagram/Messenger permissions the connect flow needs.
-const USE_CASES: { title: string; detail: string }[] = [
-	{
-		title: "Engage with customers on Messenger from Meta",
-		detail: "Respond to messages sent to your Facebook Page.",
-	},
-	{
-		title: "Manage messaging & content on Instagram",
-		detail: "Respond to comments and direct messages via the Instagram API.",
-	},
-	{
-		title: "Manage everything on your Page",
-		detail: "Moderate posts and comments from followers on your Page.",
 	},
 ];
 
@@ -123,7 +88,9 @@ export default function SetupPage() {
 	const [current, setCurrent] = useState<number | null>(null);
 	const [appUrl, setAppUrl] = useState("");
 	const [appId, setAppId] = useState("");
-	const [connecting, setConnecting] = useState(false);
+	const [connecting, setConnecting] = useState<"facebook" | "instagram" | null>(
+		null,
+	);
 	const [loading, setLoading] = useState(true);
 	// Per-item acknowledgement for the prerequisites step (gates its Next button).
 	const [prereqChecked, setPrereqChecked] = useState<Record<string, boolean>>(
@@ -173,6 +140,7 @@ export default function SetupPage() {
 		[status],
 	);
 
+	// Honest per-step "done" state — drives the Done badge + progress dots.
 	const isComplete = useCallback(
 		(id: SetupStepId): boolean => {
 			const step = SETUP_STEPS.find((s) => s.id === id);
@@ -189,12 +157,23 @@ export default function SetupPage() {
 		[isSet, connectedCount, selfDone],
 	);
 
-	// First incomplete step — where a returning operator picks up. Equals TOTAL
-	// when everything is done.
+	// Whether a step no longer blocks progress. Optional (Facebook) steps are
+	// always resolved so an Instagram-only operator can skip the whole group.
+	const isResolved = useCallback(
+		(id: SetupStepId): boolean => {
+			const step = SETUP_STEPS.find((s) => s.id === id);
+			if (!step) return false;
+			return !!step.optional || isComplete(id);
+		},
+		[isComplete],
+	);
+
+	// First unresolved step — where a returning operator picks up. Equals TOTAL
+	// when everything required is done.
 	const firstIncomplete = useMemo(() => {
-		const idx = SETUP_STEPS.findIndex((s) => !isComplete(s.id));
+		const idx = SETUP_STEPS.findIndex((s) => !isResolved(s.id));
 		return idx === -1 ? TOTAL : idx;
-	}, [isComplete]);
+	}, [isResolved]);
 
 	const allDone = firstIncomplete === TOTAL;
 
@@ -223,8 +202,6 @@ export default function SetupPage() {
 			}
 			notify.success("Saved");
 			// Refresh status so the saved value flips Next from disabled → enabled.
-			// We deliberately don't auto-advance: e.g. the webhooks step saves a
-			// token but the operator still needs to copy the callback URL here.
 			await load();
 		} catch (e) {
 			notify.error(e);
@@ -253,26 +230,26 @@ export default function SetupPage() {
 		onError: (msg) => notify.error(msg),
 	});
 
-	async function connectMeta() {
-		setConnecting(true);
+	async function connect(platform: "facebook" | "instagram") {
+		setConnecting(platform);
 		try {
 			const placeholderId = `pending-${crypto.randomUUID()}`;
 			const res = await apiFetch("/api/accounts", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					platform: "facebook",
+					platform,
 					account_id: placeholderId,
 					account_name: "Connecting…",
 				}),
 			});
 			const json = await res.json();
 			if (!res.ok) throw new Error(json.error ?? "Failed to start connect");
-			await openOAuthTab("facebook", json.data.id);
+			await openOAuthTab(platform, json.data.id);
 		} catch (e) {
 			notify.error(e);
 		} finally {
-			setConnecting(false);
+			setConnecting(null);
 		}
 	}
 
@@ -298,14 +275,30 @@ export default function SetupPage() {
 	}
 	const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(appUrl);
 
+	const verifyTokenField = (
+		<PasteField
+			label="Webhook Verify Token"
+			provider="meta_webhook_verify_token"
+			placeholder="a-random-string-you-choose"
+			isSet={isSet("meta_webhook_verify_token")}
+			onSave={(v) => saveSetting("meta_webhook_verify_token", v)}
+			rightSlot={
+				<Button variant="outline" size="sm" onClick={generateAndSaveToken}>
+					Generate
+				</Button>
+			}
+			hint="Use the exact same value in the Meta webhook setup so the handshake matches. The same token works for both the Instagram and Page objects."
+		/>
+	);
+
 	function renderBody(id: SetupStepId) {
 		switch (id) {
 			case "prerequisites":
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
-							Before connecting, confirm you have each of these. They live on
-							Meta's side, not here.
+							Instagram and Facebook are two independent connections. You only
+							need the Instagram items below; the Facebook ones are optional.
 						</p>
 						<div className="space-y-3">
 							{PREREQUISITES.map((p) => (
@@ -334,31 +327,161 @@ export default function SetupPage() {
 							<strong>Business</strong> type, and name it (e.g.{" "}
 							<strong>Oh Daddy</strong>).
 						</p>
-						<p className="text-sm text-muted-foreground">
-							When prompted for <strong>use cases</strong>, add all three below.
-							These grant the Pages, Instagram, and Messenger permissions the
-							connect step relies on.
-						</p>
 						<ul className="space-y-2">
-							{USE_CASES.map((u) => (
-								<li
-									key={u.title}
-									className="rounded-md border border-border/60 bg-muted/40 px-3 py-2"
-								>
-									<p className="text-sm font-medium text-foreground">
-										{u.title}
-									</p>
-									<p className="text-xs text-muted-foreground">{u.detail}</p>
-								</li>
-							))}
+							<li className="rounded-md border border-border/60 bg-muted/40 px-3 py-2">
+								<p className="text-sm font-medium text-foreground">
+									Add the Instagram product
+								</p>
+								<p className="text-xs text-muted-foreground">
+									Choose <strong>API setup with Instagram login</strong>. This
+									lets people log in directly with an Instagram professional
+									account — no Facebook Page required.
+								</p>
+							</li>
+							<li className="rounded-md border border-border/60 bg-muted/40 px-3 py-2">
+								<p className="text-sm font-medium text-foreground">
+									Optional: Facebook Login for Business
+								</p>
+								<p className="text-xs text-muted-foreground">
+									Only add this if you also want to connect Facebook Pages.
+								</p>
+							</li>
 						</ul>
 					</>
 				);
-			case "app-id":
+			// ── Instagram (required) ─────────────────────────────────────
+			case "ig-app-id":
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
-							In your app, go to{" "}
+							In your app, open{" "}
+							{appId ? (
+								<ExtLink href={appInstagramSetupUrl(appId)}>
+									Instagram → API setup with Instagram login
+								</ExtLink>
+							) : (
+								<>Instagram → API setup with Instagram login</>
+							)}{" "}
+							and copy the <strong>Instagram app ID</strong>.
+						</p>
+						<PasteField
+							label="Instagram App ID"
+							provider="instagram_app_id"
+							placeholder="1234567890"
+							isSet={isSet("instagram_app_id")}
+							onSave={(v) => saveSetting("instagram_app_id", v)}
+						/>
+						<div className="space-y-1.5">
+							<p className="text-xs text-muted-foreground">
+								Connecting requests these Instagram permissions automatically:
+							</p>
+							<div className="flex flex-wrap gap-1.5">
+								{INSTAGRAM_PERMISSION_LIST.map((p) => (
+									<span
+										key={p}
+										className="rounded-full bg-muted px-2.5 py-0.5 font-mono text-[11px] text-foreground/80"
+									>
+										{p}
+									</span>
+								))}
+							</div>
+						</div>
+					</>
+				);
+			case "ig-app-secret":
+				return (
+					<>
+						<p className="text-sm text-muted-foreground">
+							On the same{" "}
+							{appId ? (
+								<ExtLink href={appInstagramSetupUrl(appId)}>
+									Instagram → API setup with Instagram login
+								</ExtLink>
+							) : (
+								<>Instagram → API setup with Instagram login</>
+							)}{" "}
+							tab, reveal and copy the <strong>Instagram app secret</strong>.
+						</p>
+						<PasteField
+							label="Instagram App Secret"
+							provider="instagram_app_secret"
+							placeholder="••••••••"
+							secret
+							isSet={isSet("instagram_app_secret")}
+							onSave={(v) => saveSetting("instagram_app_secret", v)}
+							hint="Stored encrypted at rest. Also used to verify incoming Instagram webhooks."
+						/>
+					</>
+				);
+			case "ig-redirect-uri":
+				return (
+					<>
+						<p className="text-sm text-muted-foreground">
+							Add this redirect URI under the Instagram login settings of the{" "}
+							{appId ? (
+								<ExtLink href={appInstagramSetupUrl(appId)}>
+									API setup with Instagram login
+								</ExtLink>
+							) : (
+								<>API setup with Instagram login</>
+							)}{" "}
+							tab.
+						</p>
+						<CopyField
+							label="OAuth Redirect URI"
+							value={redirectUri}
+							hint={
+								<>
+									Paste under <strong>Business login settings</strong> →{" "}
+									<strong>OAuth redirect URIs</strong>, then save.{" "}
+									{isLocal
+										? "You're on localhost — Meta needs a public URL, so expose this with a tunnel (e.g. ngrok) and register that URL instead. Must match exactly."
+										: "Must match exactly (scheme, host, path)."}
+								</>
+							}
+						/>
+					</>
+				);
+			case "ig-webhooks":
+				return (
+					<>
+						<p className="text-sm text-muted-foreground">
+							Generate a verify token, then in the{" "}
+							{appId ? (
+								<ExtLink href={appInstagramSetupUrl(appId)}>
+									Instagram → API setup with Instagram login
+								</ExtLink>
+							) : (
+								<>Instagram → API setup with Instagram login</>
+							)}{" "}
+							tab, open <strong>Configure webhooks</strong>. Paste the callback
+							URL and token, verify, then subscribe to the{" "}
+							<strong>comments</strong> field.
+						</p>
+						{verifyTokenField}
+						<CopyField
+							label="Callback URL"
+							value={webhookUrl}
+							hint={
+								isLocal
+									? "You're on localhost — expose this with a tunnel and use that URL in Meta."
+									: "Paste into Meta as the webhook callback URL."
+							}
+						/>
+					</>
+				);
+			// ── Facebook Page (optional) ─────────────────────────────────
+			case "fb-app-id":
+				return (
+					<>
+						<p className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+							Everything from here to the Connect step is{" "}
+							<strong>optional</strong> and only needed to connect Facebook
+							Pages. Instagram-only? Click <strong>Next</strong> to skip
+							straight to Connect.
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Go to{" "}
 							{appId ? (
 								<ExtLink href={appBasicSettingsUrl(appId)}>
 									App Settings → Basic
@@ -378,7 +501,7 @@ export default function SetupPage() {
 						/>
 					</>
 				);
-			case "app-secret":
+			case "fb-app-secret":
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
@@ -400,11 +523,11 @@ export default function SetupPage() {
 							secret
 							isSet={isSet("meta_app_secret")}
 							onSave={(v) => saveSetting("meta_app_secret", v)}
-							hint="Stored encrypted at rest. Also used to verify incoming webhooks."
+							hint="Stored encrypted at rest. Also used to verify incoming Page webhooks."
 						/>
 					</>
 				);
-			case "redirect-uri":
+			case "fb-redirect-uri":
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
@@ -427,7 +550,7 @@ export default function SetupPage() {
 									→ <strong>Valid OAuth Redirect URIs</strong>, then click{" "}
 									<strong>Save changes</strong>.{" "}
 									{isLocal
-										? "You're on localhost — Meta needs a public URL, so expose this with a tunnel (e.g. ngrok) and register that URL instead. Must match exactly."
+										? "You're on localhost — register a public tunnel URL instead. Must match exactly."
 										: "Must match exactly (scheme, host, path)."}
 								</>
 							}
@@ -451,7 +574,7 @@ export default function SetupPage() {
 						/>
 					</>
 				);
-			case "config-id":
+			case "fb-config-id":
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
@@ -468,9 +591,7 @@ export default function SetupPage() {
 						</p>
 						<div className="space-y-1.5">
 							<p className="text-xs text-muted-foreground">
-								The use cases you added when creating the app already include
-								these permissions — confirm they're all selected on the
-								configuration:
+								Confirm these permissions are selected on the configuration:
 							</p>
 							<div className="flex flex-wrap gap-1.5">
 								{PERMISSION_LIST.map((p) => (
@@ -492,47 +613,21 @@ export default function SetupPage() {
 						/>
 					</>
 				);
-			case "webhooks":
+			case "fb-webhooks":
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
-							Generate a verify token, then open{" "}
+							Generate or reuse the verify token, then open{" "}
 							{appId ? (
 								<ExtLink href={appWebhooksUrl(appId)}>Webhooks</ExtLink>
 							) : (
 								<>Webhooks</>
-							)}
-							. You'll set this up for two objects via the dropdown there — do
-							both so Facebook and Instagram comments both reach you.
+							)}{" "}
+							and pick the <strong>Page</strong> object. Paste the callback URL
+							and token, verify, then subscribe to the <strong>feed</strong>{" "}
+							field.
 						</p>
-						<ul className="space-y-2 text-sm text-muted-foreground">
-							<li>
-								• <strong>Page</strong> object: paste the callback URL and
-								token, verify, then subscribe to the <strong>feed</strong>{" "}
-								field.
-							</li>
-							<li>
-								• <strong>Instagram</strong> object: same callback URL and
-								token, then subscribe to the <strong>comments</strong> field.
-							</li>
-						</ul>
-						<PasteField
-							label="Webhook Verify Token"
-							provider="meta_webhook_verify_token"
-							placeholder="a-random-string-you-choose"
-							isSet={isSet("meta_webhook_verify_token")}
-							onSave={(v) => saveSetting("meta_webhook_verify_token", v)}
-							rightSlot={
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={generateAndSaveToken}
-								>
-									Generate
-								</Button>
-							}
-							hint="Use the exact same value in the Meta webhook setup so the handshake matches."
-						/>
+						{verifyTokenField}
 						<CopyField
 							label="Callback URL"
 							value={webhookUrl}
@@ -548,12 +643,26 @@ export default function SetupPage() {
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
-							Launch the Meta consent flow in a new tab. When it finishes, your
-							Pages and Instagram accounts appear automatically.
+							Launch a native login in a new tab. Instagram and Facebook are
+							separate — connect whichever you set up.
 						</p>
-						<Button onClick={connectMeta} disabled={connecting}>
-							{connecting ? "Starting…" : "Connect Meta"}
-						</Button>
+						<div className="flex flex-wrap gap-3">
+							<Button
+								onClick={() => connect("instagram")}
+								disabled={connecting !== null}
+							>
+								{connecting === "instagram" ? "Starting…" : "Connect Instagram"}
+							</Button>
+							<Button
+								variant="outline"
+								onClick={() => connect("facebook")}
+								disabled={connecting !== null}
+							>
+								{connecting === "facebook"
+									? "Starting…"
+									: "Connect Facebook Page"}
+							</Button>
+						</div>
 						{connectedCount > 0 && (
 							<p className="text-sm text-success">
 								Connected {connectedCount} account
@@ -579,17 +688,16 @@ export default function SetupPage() {
 	const step = SETUP_STEPS[current];
 	const stepComplete = isComplete(step.id);
 	const isLast = current === TOTAL - 1;
-	// Prerequisites needs every box ticked (or already completed in a past
+	// Prerequisites needs the Instagram box ticked (or already completed in a past
 	// session) before advancing.
-	const prereqsReady =
-		stepComplete || PREREQUISITES.every((p) => prereqChecked[p.key]);
+	const prereqsReady = stepComplete || !!prereqChecked["ig-business"];
 	// Settings/accounts steps gate Next until the value is actually saved /
-	// connected. Self steps are free to advance (Next = "I did this"), except
-	// prerequisites which gates on its checkboxes.
+	// connected — unless the step is optional (Facebook group), which can always
+	// be skipped. Self steps are free to advance (Next = "I did this").
 	const nextDisabled =
 		step.id === "prerequisites"
 			? !prereqsReady
-			: step.completion.kind !== "self" && !stepComplete;
+			: !step.optional && step.completion.kind !== "self" && !stepComplete;
 	const nextLabel = isLast ? "Finish" : "Next";
 
 	return (
@@ -637,6 +745,11 @@ export default function SetupPage() {
 						{stepComplete && (
 							<span className="text-[11px] font-medium uppercase tracking-wide text-success">
 								Done
+							</span>
+						)}
+						{!stepComplete && step.optional && (
+							<span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+								Optional
 							</span>
 						)}
 					</div>

@@ -27,6 +27,8 @@ export const SETTINGS_PROVIDERS = [
 	"meta_app_secret",
 	"meta_config_id",
 	"meta_webhook_verify_token",
+	"instagram_app_id",
+	"instagram_app_secret",
 ] as const;
 
 export type SettingsProvider = (typeof SETTINGS_PROVIDERS)[number];
@@ -36,6 +38,8 @@ export const ENV_FALLBACK: Record<string, string> = {
 	meta_app_secret: "META_APP_SECRET",
 	meta_config_id: "META_CONFIG_ID",
 	meta_webhook_verify_token: "META_WEBHOOK_VERIFY_TOKEN",
+	instagram_app_id: "INSTAGRAM_APP_ID",
+	instagram_app_secret: "INSTAGRAM_APP_SECRET",
 };
 
 /**

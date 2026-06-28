@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const APP_SECRET = "test-app-secret";
+const IG_APP_SECRET = "test-ig-app-secret";
 
 // In-memory fakes for the route's three dependencies.
 const harness = vi.hoisted(() => {
@@ -35,8 +36,11 @@ const harness = vi.hoisted(() => {
 vi.mock("@/inngest/client", () => ({ inngest: { send: harness.send } }));
 vi.mock("@/lib/db", () => ({ getDb: () => harness.sql }));
 vi.mock("@/lib/settings", () => ({
-	getSettingsKey: async (key: string) =>
-		key === "meta_app_secret" ? APP_SECRET : null,
+	getSettingsKey: async (key: string) => {
+		if (key === "meta_app_secret") return APP_SECRET;
+		if (key === "instagram_app_secret") return IG_APP_SECRET;
+		return null;
+	},
 }));
 
 import { POST } from "./route";
@@ -120,10 +124,13 @@ describe("POST /api/webhooks/meta — signature gate", () => {
 		expect(harness.send).not.toHaveBeenCalled();
 	});
 
-	it("returns 400 for a correctly signed but non-JSON body", async () => {
+	it("rejects a non-JSON body — the secret can't be selected (401)", async () => {
+		// Signature verification parses the body to pick the per-object app secret
+		// (instagram vs page). An unparseable body can't be verified, so it fails
+		// the signature gate rather than reaching the JSON schema check.
 		const body = "not json";
 		const res = await POST(makeRequest(body));
-		expect(res.status).toBe(400);
+		expect(res.status).toBe(401);
 		expect(harness.send).not.toHaveBeenCalled();
 	});
 
@@ -179,5 +186,55 @@ describe("POST /api/webhooks/meta — filtering", () => {
 		expect(harness.send).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "comment-facebook-c-9-add" }),
 		);
+	});
+});
+
+describe("POST /api/webhooks/meta — dual-secret signature by object", () => {
+	it("verifies an instagram payload against the Instagram app secret", async () => {
+		harness.knownAccounts.add("ig-1");
+		const body = JSON.stringify({
+			object: "instagram",
+			entry: [
+				{
+					id: "ig-1",
+					time: 1,
+					changes: [
+						{
+							field: "comments",
+							value: { id: "igc-1", verb: "add", text: "guide" },
+						},
+					],
+				},
+			],
+		});
+		const res = await POST(
+			makeRequest(body, { signature: sign(body, IG_APP_SECRET) }),
+		);
+		expect(res.status).toBe(200);
+		expect(harness.send).toHaveBeenCalledTimes(1);
+		expect(harness.send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: "comment-instagram-igc-1-add",
+				data: expect.objectContaining({ platform: "instagram" }),
+			}),
+		);
+	});
+
+	it("rejects an instagram payload signed with the Facebook secret (401)", async () => {
+		harness.knownAccounts.add("ig-1");
+		const body = JSON.stringify({
+			object: "instagram",
+			entry: [
+				{
+					id: "ig-1",
+					changes: [{ field: "comments", value: { id: "igc-2", verb: "add" } }],
+				},
+			],
+		});
+		const res = await POST(
+			makeRequest(body, { signature: sign(body, APP_SECRET) }),
+		);
+		expect(res.status).toBe(401);
+		expect(harness.send).not.toHaveBeenCalled();
 	});
 });

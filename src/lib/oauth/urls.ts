@@ -1,4 +1,4 @@
-import { META_SCOPES } from "@/lib/oauth/scopes";
+import { INSTAGRAM_LOGIN_SCOPES, META_SCOPES } from "@/lib/oauth/scopes";
 import { getSettingsKey, requireSettingsKey } from "@/lib/settings";
 
 // ============================================================
@@ -83,6 +83,37 @@ export async function buildMetaAuthUrl(
 	};
 }
 
+/**
+ * Build the Instagram-login OAuth URL ("Instagram API with Instagram login").
+ *
+ * The user authenticates directly with their Instagram professional account at
+ * `instagram.com/oauth/authorize` using the separate Instagram app id + the IG
+ * business scopes — no Facebook Page, Business portfolio, or linking required.
+ * This flow has no PKCE, so `codeVerifier`/`codeChallenge` are returned empty.
+ * @see https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/business-login
+ */
+export async function buildInstagramLoginUrl(
+	redirectUri: string,
+): Promise<AuthUrlResult> {
+	const state = generateState();
+	const instagramAppId = await requireSettingsKey("instagram_app_id");
+
+	const params = new URLSearchParams({
+		client_id: instagramAppId,
+		redirect_uri: redirectUri,
+		response_type: "code",
+		scope: INSTAGRAM_LOGIN_SCOPES.join(","),
+		state,
+	});
+
+	return {
+		url: `https://www.instagram.com/oauth/authorize?${params.toString()}`,
+		state,
+		codeVerifier: "",
+		codeChallenge: "",
+	};
+}
+
 /** Build an OAuth URL for the given (Meta-only) platform. */
 export async function buildOAuthUrl(
 	platform: "facebook" | "instagram",
@@ -90,8 +121,9 @@ export async function buildOAuthUrl(
 ): Promise<AuthUrlResult> {
 	switch (platform) {
 		case "facebook":
-		case "instagram":
 			return buildMetaAuthUrl(redirectUri);
+		case "instagram":
+			return buildInstagramLoginUrl(redirectUri);
 		default:
 			throw new Error(`Unsupported platform: ${platform}`);
 	}

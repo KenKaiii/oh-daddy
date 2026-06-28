@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useConfirm } from "@/components/ui/confirm";
+import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import { apiFetch } from "@/lib/api-client";
 import { notify } from "@/lib/toast";
 import { formatError } from "@/lib/utils";
@@ -24,7 +25,10 @@ export default function AccountsPage() {
 	const [accounts, setAccounts] = useState<Account[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [connecting, setConnecting] = useState(false);
+	const [connecting, setConnecting] = useState<"facebook" | "instagram" | null>(
+		null,
+	);
+	const [modalOpen, setModalOpen] = useState(false);
 	const confirm = useConfirm();
 
 	const load = useCallback(async () => {
@@ -59,30 +63,31 @@ export default function AccountsPage() {
 		onError: (msg) => notify.error(msg),
 	});
 
-	async function connectMeta() {
-		setConnecting(true);
+	async function connect(platform: "facebook" | "instagram") {
+		setConnecting(platform);
 		setError(null);
 		try {
-			// Create a placeholder account row to anchor the OAuth state, then
-			// launch the Meta consent flow. Discovery replaces it with the real
-			// Pages + IG accounts on callback.
+			// Create a placeholder account row to anchor the OAuth state, then launch
+			// the platform's native login. Discovery replaces the placeholder with
+			// the real account(s) on callback.
 			const placeholderId = `pending-${crypto.randomUUID()}`;
 			const res = await apiFetch("/api/accounts", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					platform: "facebook",
+					platform,
 					account_id: placeholderId,
 					account_name: "Connecting…",
 				}),
 			});
 			const json = await res.json();
 			if (!res.ok) throw new Error(json.error ?? "Failed to start connect");
-			await openOAuthTab("facebook", json.data.id);
+			await openOAuthTab(platform, json.data.id);
+			setModalOpen(false);
 		} catch (e) {
 			notify.error(e);
 		} finally {
-			setConnecting(false);
+			setConnecting(null);
 		}
 	}
 
@@ -115,9 +120,7 @@ export default function AccountsPage() {
 				<h1 className="font-display text-3xl font-semibold tracking-tight">
 					Accounts
 				</h1>
-				<Button onClick={connectMeta} disabled={connecting}>
-					{connecting ? "Starting…" : "Connect Meta"}
-				</Button>
+				<Button onClick={() => setModalOpen(true)}>Add Account</Button>
 			</div>
 
 			{error && (
@@ -133,9 +136,7 @@ export default function AccountsPage() {
 			) : connected.length === 0 ? (
 				<Card>
 					<CardContent className="flex flex-col items-center p-10 text-center">
-						<Button onClick={connectMeta} disabled={connecting}>
-							Connect Meta
-						</Button>
+						<Button onClick={() => setModalOpen(true)}>Add Account</Button>
 						<p className="mt-4 text-sm text-muted-foreground">
 							No accounts connected yet.
 						</p>
@@ -177,6 +178,49 @@ export default function AccountsPage() {
 					))}
 				</div>
 			)}
+
+			<Dialog open={modalOpen} onClose={() => setModalOpen(false)}>
+				<DialogHeader
+					title="Add Account"
+					description="Choose how to connect. Each runs its own native login — Instagram needs no Facebook Page."
+				/>
+				<div className="flex flex-col gap-3">
+					<button
+						type="button"
+						onClick={() => connect("instagram")}
+						disabled={connecting !== null}
+						className="glass-hover ring-focus flex items-center gap-4 rounded-xl border border-border/60 p-4 text-left disabled:opacity-60"
+					>
+						<PlatformIcon platform="instagram" />
+						<div className="min-w-0">
+							<p className="font-display font-semibold">
+								{connecting === "instagram" ? "Starting…" : "Connect Instagram"}
+							</p>
+							<p className="text-xs text-muted-foreground">
+								Log in with your Instagram professional account.
+							</p>
+						</div>
+					</button>
+					<button
+						type="button"
+						onClick={() => connect("facebook")}
+						disabled={connecting !== null}
+						className="glass-hover ring-focus flex items-center gap-4 rounded-xl border border-border/60 p-4 text-left disabled:opacity-60"
+					>
+						<PlatformIcon platform="facebook" />
+						<div className="min-w-0">
+							<p className="font-display font-semibold">
+								{connecting === "facebook"
+									? "Starting…"
+									: "Connect Facebook Page"}
+							</p>
+							<p className="text-xs text-muted-foreground">
+								Connect the Facebook Pages you manage.
+							</p>
+						</div>
+					</button>
+				</div>
+			</Dialog>
 		</div>
 	);
 }

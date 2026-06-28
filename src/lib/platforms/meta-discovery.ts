@@ -18,12 +18,6 @@ export type MetaPage = {
 	id: string;
 	name: string;
 	access_token: string;
-	instagram_business_account?: {
-		id: string;
-		username?: string;
-		name?: string;
-		profile_picture_url?: string;
-	};
 };
 
 // ============================================================
@@ -101,7 +95,10 @@ export async function discoverMetaAccounts(
 	const llData = (await llRes.json()) as { access_token: string };
 	const longLivedUserToken = llData.access_token;
 
-	// 2. Discover all Pages the user granted access to (paginated)
+	// 2. Discover all Pages the user granted access to (paginated).
+	// Instagram accounts are intentionally NOT derived from linked Pages here —
+	// they come exclusively from the Instagram-login flow (separate IG-User
+	// token + graph.instagram.com), so this path is Pages-only.
 	const allPages = await fetchAllMetaPages(longLivedUserToken);
 	if (allPages.length === 0) {
 		console.warn("Meta discovery returned no pages");
@@ -134,8 +131,7 @@ export async function discoverMetaAccounts(
 export async function fetchAllMetaPages(token: string): Promise<MetaPage[]> {
 	const allPages: MetaPage[] = [];
 	const pagesQuery = new URLSearchParams({
-		fields:
-			"id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}",
+		fields: "id,name,access_token",
 		limit: "100",
 		access_token: token,
 	});
@@ -166,7 +162,7 @@ export async function fetchAllMetaPages(token: string): Promise<MetaPage[]> {
 	return allPages;
 }
 
-/** Upsert discovered Pages + linked IG accounts and subscribe to webhooks. */
+/** Upsert discovered Pages and subscribe them to comment webhooks. */
 export async function upsertDiscoveredPages(
 	pages: MetaPage[],
 ): Promise<DiscoveredAccount[]> {
@@ -210,29 +206,6 @@ export async function upsertDiscoveredPages(
 				`Webhook subscription error for page ${page.id}:`,
 				subError,
 			);
-		}
-
-		// Linked Instagram Business Account → upsert (IG API uses the Page token).
-		const ig = page.instagram_business_account;
-		if (ig) {
-			const igName = ig.username ?? ig.name ?? ig.id;
-			await upsertPlatformAccount({
-				platform: "instagram",
-				account_id: ig.id,
-				account_name: igName,
-				access_token: page.access_token,
-				token_expires_at: null,
-				metadata: {
-					linked_facebook_page_id: page.id,
-					profile_picture_url: ig.profile_picture_url ?? null,
-				},
-			});
-
-			discovered.push({
-				platform: "instagram",
-				account_id: ig.id,
-				account_name: igName,
-			});
 		}
 	}
 

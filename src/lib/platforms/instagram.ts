@@ -7,11 +7,11 @@ import type {
 	SendPrivateReplyParams,
 } from "./types";
 
-// All IG calls go through graph.facebook.com because tokens are issued via
-// Facebook Login for Business (stored as FB Page tokens). graph.instagram.com
-// only accepts IG-User tokens from the IG Business Login flow and rejects FB
-// Page tokens with code 190.
-const FB_GRAPH_API_BASE = "https://graph.facebook.com/v25.0";
+// All IG calls go through graph.instagram.com because tokens are issued via the
+// Instagram Business Login flow (stored as IG-User tokens). graph.instagram.com
+// rejects FB Page tokens with code 190 and vice-versa — Instagram accounts are
+// connected exclusively through Instagram login now.
+const IG_GRAPH_API_BASE = "https://graph.instagram.com/v23.0";
 
 interface IGCommentData {
 	id: string;
@@ -54,7 +54,7 @@ export const instagramAdapter: PlatformAdapter = {
 	},
 
 	async postCommentReply(params: PostCommentReplyParams): Promise<string> {
-		const url = `${FB_GRAPH_API_BASE}/${graphNodeId(params.parentCommentId)}/replies`;
+		const url = `${IG_GRAPH_API_BASE}/${graphNodeId(params.parentCommentId)}/replies`;
 		const result = await metaApiFetch<{ id: string }>(url, {
 			method: "POST",
 			headers: {
@@ -67,11 +67,10 @@ export const instagramAdapter: PlatformAdapter = {
 	},
 
 	async sendPrivateReply(params: SendPrivateReplyParams): Promise<string> {
-		// Private Reply via recipient.comment_id. Same node rule as Messenger:
-		// must target the linked Facebook Page, not the IG id — /me/messages
-		// resolves to the Page via the page token (POSTing to /{IG_ID}/messages
-		// fails with "Application does not have the capability").
-		const url = `${FB_GRAPH_API_BASE}/me/messages`;
+		// Private Reply via recipient.comment_id. With an IG-User token the message
+		// node is the IG account itself (POST /{IG_ID}/messages on
+		// graph.instagram.com) — there is no Facebook Page in this flow.
+		const url = `${IG_GRAPH_API_BASE}/${graphNodeId(params.accountId)}/messages`;
 		const result = await metaApiFetch<{ message_id: string }>(url, {
 			method: "POST",
 			headers: {
