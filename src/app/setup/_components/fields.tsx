@@ -38,6 +38,32 @@ export function ExtLink({
 }
 
 /**
+ * A single acknowledgement checkbox row. The checkbox is the only toggle target
+ * (the text may contain its own links), so clicking a link never flips the box.
+ */
+export function CheckItem({
+	checked,
+	onChange,
+	children,
+}: {
+	checked: boolean;
+	onChange: (checked: boolean) => void;
+	children: ReactNode;
+}) {
+	return (
+		<div className="flex items-start gap-3">
+			<input
+				type="checkbox"
+				checked={checked}
+				onChange={(e) => onChange(e.target.checked)}
+				className="ring-focus mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-border accent-[#6d6dfb]"
+			/>
+			<span className="text-sm">{children}</span>
+		</div>
+	);
+}
+
+/**
  * Read-only value to paste into Meta: labelled input with a Copy button. For
  * every "copy this value over there" moment in the wizard.
  */

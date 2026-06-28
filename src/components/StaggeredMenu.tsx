@@ -40,6 +40,12 @@ export interface StaggeredMenuProps {
 		link: string,
 		event: React.MouseEvent<HTMLAnchorElement>,
 	) => void;
+	/**
+	 * Optional content pinned to the bottom of the open panel (e.g. a secondary
+	 * "Run setup again" link). Receives `close` so the handler can dismiss the
+	 * menu after navigating.
+	 */
+	footerNode?: (close: () => void) => React.ReactNode;
 }
 
 export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
@@ -61,6 +67,7 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
 	onMenuOpen,
 	onMenuClose,
 	onItemClick,
+	footerNode,
 }: StaggeredMenuProps) => {
 	const [open, setOpen] = useState(false);
 	const openRef = useRef(false);
@@ -609,6 +616,12 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
 								</li>
 							)}
 						</ul>
+
+						{footerNode && (
+							<div className="sm-footer mt-auto pt-8">
+								{footerNode(closeMenu)}
+							</div>
+						)}
 
 						{displaySocials && socialItems && socialItems.length > 0 && (
 							<div

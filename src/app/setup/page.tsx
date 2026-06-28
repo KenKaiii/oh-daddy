@@ -1,7 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,12 +27,64 @@ import { notify } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 import { useOAuthPopup } from "../accounts/_hooks/use-oauth-popup";
-import { CopyField, ExtLink, PasteField } from "./_components/fields";
+import {
+	CheckItem,
+	CopyField,
+	ExtLink,
+	PasteField,
+} from "./_components/fields";
 
 interface StatusRow {
 	provider: string;
 	is_set: boolean;
 }
+
+// Prerequisites the operator must confirm (checkbox each) before continuing.
+const PREREQUISITES: { key: string; label: ReactNode }[] = [
+	{
+		key: "fb-account",
+		label: (
+			<>
+				A{" "}
+				<ExtLink href={EXTERNAL_LINKS.facebookSignup}>Facebook account</ExtLink>
+				.
+			</>
+		),
+	},
+	{
+		key: "fb-page",
+		label: (
+			<>
+				A <ExtLink href={EXTERNAL_LINKS.createPage}>Facebook Page</ExtLink> you
+				manage.
+			</>
+		),
+	},
+	{
+		key: "ig-business",
+		label: (
+			<>
+				For Instagram: an{" "}
+				<ExtLink href={EXTERNAL_LINKS.instagramBusiness}>
+					Instagram Business or Creator account
+				</ExtLink>{" "}
+				linked to that Page.
+			</>
+		),
+	},
+	{
+		key: "business-portfolio",
+		label: (
+			<>
+				A{" "}
+				<ExtLink href={EXTERNAL_LINKS.businessPortfolio}>
+					Meta Business portfolio
+				</ExtLink>
+				.
+			</>
+		),
+	},
+];
 
 const TOTAL = SETUP_STEPS.length;
 const SELF_KEY = (id: SetupStepId) => `setup:step:${id}`;
@@ -51,6 +109,10 @@ export default function SetupPage() {
 	const [appId, setAppId] = useState("");
 	const [connecting, setConnecting] = useState(false);
 	const [loading, setLoading] = useState(true);
+	// Per-item acknowledgement for the prerequisites step (gates its Next button).
+	const [prereqChecked, setPrereqChecked] = useState<Record<string, boolean>>(
+		{},
+	);
 
 	const load = useCallback(async () => {
 		try {
@@ -226,39 +288,22 @@ export default function SetupPage() {
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
-							Before connecting, make sure you have these. They live on Meta's
-							side, not here.
+							Before connecting, confirm you have each of these. They live on
+							Meta's side, not here.
 						</p>
-						<ul className="space-y-2 text-sm">
-							<li>
-								• A{" "}
-								<ExtLink href={EXTERNAL_LINKS.facebookSignup}>
-									Facebook account
-								</ExtLink>
-								.
-							</li>
-							<li>
-								• A{" "}
-								<ExtLink href={EXTERNAL_LINKS.createPage}>
-									Facebook Page
-								</ExtLink>{" "}
-								you manage.
-							</li>
-							<li>
-								• For Instagram: an{" "}
-								<ExtLink href={EXTERNAL_LINKS.instagramBusiness}>
-									Instagram Business or Creator account
-								</ExtLink>{" "}
-								linked to that Page.
-							</li>
-							<li>
-								• A{" "}
-								<ExtLink href={EXTERNAL_LINKS.businessPortfolio}>
-									Meta Business portfolio
-								</ExtLink>
-								.
-							</li>
-						</ul>
+						<div className="space-y-3">
+							{PREREQUISITES.map((p) => (
+								<CheckItem
+									key={p.key}
+									checked={!!prereqChecked[p.key]}
+									onChange={(c) =>
+										setPrereqChecked((prev) => ({ ...prev, [p.key]: c }))
+									}
+								>
+									{p.label}
+								</CheckItem>
+							))}
+						</div>
 					</>
 				);
 			case "create-app":
@@ -478,9 +523,17 @@ export default function SetupPage() {
 	const step = SETUP_STEPS[current];
 	const stepComplete = isComplete(step.id);
 	const isLast = current === TOTAL - 1;
+	// Prerequisites needs every box ticked (or already completed in a past
+	// session) before advancing.
+	const prereqsReady =
+		stepComplete || PREREQUISITES.every((p) => prereqChecked[p.key]);
 	// Settings/accounts steps gate Next until the value is actually saved /
-	// connected. Self steps are always free to advance (Next = "I did this").
-	const nextDisabled = step.completion.kind !== "self" && !stepComplete;
+	// connected. Self steps are free to advance (Next = "I did this"), except
+	// prerequisites which gates on its checkboxes.
+	const nextDisabled =
+		step.id === "prerequisites"
+			? !prereqsReady
+			: step.completion.kind !== "self" && !stepComplete;
 	const nextLabel = isLast ? "Finish" : "Next";
 
 	return (
