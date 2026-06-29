@@ -2,7 +2,7 @@ import type { HTMLAttributes } from "react";
 
 import { cn } from "@/lib/utils";
 
-type Variant = "default" | "success" | "muted" | "outline";
+type Variant = "default" | "success" | "positive" | "muted" | "outline";
 
 const variants: Record<Variant, string> = {
 	// Data token (keyword chips) — neutral, mono for a technical feel.
@@ -10,6 +10,9 @@ const variants: Record<Variant, string> = {
 	// Affirmative / active — violet-tint (single accent, lower prominence
 	// than the solid-violet primary CTA).
 	success: "bg-accent text-accent-foreground",
+	// Configured/“Set” — soft green that reads affirmative against the dark
+	// violet theme without competing with the primary CTA.
+	positive: "bg-emerald-500/15 text-emerald-400",
 	muted: "bg-muted text-muted-foreground",
 	outline: "border border-border text-muted-foreground",
 };

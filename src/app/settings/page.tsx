@@ -144,27 +144,25 @@ export default function SettingsPage() {
 							const s = statusFor(f.provider);
 							return (
 								<div key={f.provider} className="space-y-1.5">
-									<div className="flex items-center justify-between">
+									<div className="flex items-center justify-between gap-2">
 										<span className="flex items-center gap-1.5">
 											<Label htmlFor={f.provider}>{f.label}</Label>
 											<InfoTip text={f.info} />
-										</span>
-										<span className="flex items-center gap-2">
-											{f.provider === "meta_webhook_verify_token" && (
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={generateVerifyToken}
-												>
-													Generate
-												</Button>
-											)}
 											{s?.is_set ? (
-												<Badge variant="success">Set</Badge>
+												<Badge variant="positive">Set</Badge>
 											) : (
 												<Badge variant="muted">Not set</Badge>
 											)}
 										</span>
+										{f.provider === "meta_webhook_verify_token" && (
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={generateVerifyToken}
+											>
+												Generate
+											</Button>
+										)}
 									</div>
 									<Input
 										id={f.provider}

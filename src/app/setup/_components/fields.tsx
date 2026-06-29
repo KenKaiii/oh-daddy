@@ -156,15 +156,15 @@ export function PasteField({
 	return (
 		<div className="space-y-1.5">
 			<div className="flex items-center justify-between gap-2">
-				<Label htmlFor={`setup-${provider}`}>{label}</Label>
 				<span className="flex items-center gap-2">
-					{rightSlot}
+					<Label htmlFor={`setup-${provider}`}>{label}</Label>
 					{isSet ? (
-						<Badge variant="success">Set</Badge>
+						<Badge variant="positive">Set</Badge>
 					) : (
 						<Badge variant="muted">Not set</Badge>
 					)}
 				</span>
+				{rightSlot}
 			</div>
 			<div className="flex items-center gap-2">
 				<Input
