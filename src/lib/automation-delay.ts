@@ -4,9 +4,10 @@
  * To avoid blasting hundreds of Meta API calls instantly, each matched
  * automation waits a random duration before posting its reply + DM. The wait is
  * a random integer of seconds in [DELAY_MIN_SECONDS, max], where `max` is an
- * operator setting (Settings page). Throttling to "one send per interval" is
- * enforced per account by the Inngest function's per-account concurrency key —
- * see `src/inngest/functions/process-comment.ts`.
+ * operator setting (Settings page). "One send per interval, per account" is
+ * enforced in `src/inngest/functions/process-comment.ts`: the wait runs as a
+ * blocking pause inside the delivery step (which holds the per-account
+ * concurrency slot, limit 1) rather than step.sleep (which would release it).
  *
  * The floor is fixed at 10s; operators only raise the ceiling (up to 55s).
  */

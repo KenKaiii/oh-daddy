@@ -242,13 +242,11 @@ export const processComment = inngest.createFunction(
 		}
 
 		// ──────────────────────────────────────────────────────────────
-		// STEP 2: Smart delay (only when a comment actually matches).
+		// STEP 2: Match check + smart delay window.
 		//
-		// Read-only match check first, so non-matching comments are NOT throttled
-		// — they release the per-account concurrency slot immediately. When a
-		// comment does match, sleep a random interval; because the concurrency
-		// slot is held across the sleep, the next matching comment on the SAME
-		// account can't fire until this one finishes — one send per interval.
+		// Read-only check first so NON-matching comments skip the delay entirely
+		// and release the per-account slot immediately. For a match, pick a random
+		// wait once (memoized so retries reuse the same value).
 		// ──────────────────────────────────────────────────────────────
 		const matched = await step.run("match-check", () =>
 			commentMatchesAutomation({
@@ -258,19 +256,32 @@ export const processComment = inngest.createFunction(
 			}),
 		);
 
-		if (matched) {
-			const delaySeconds = await step.run("pick-delay", async () =>
-				pickDelaySeconds(await getDelayMaxSeconds()),
-			);
-			await step.sleep("smart-delay", `${delaySeconds}s`);
-		}
+		const delaySeconds = matched
+			? await step.run("pick-delay", async () =>
+					pickDelaySeconds(await getDelayMaxSeconds()),
+				)
+			: 0;
 
 		// ──────────────────────────────────────────────────────────────
-		// STEP 3: Run keyword automations (claim-before-send, then deliver).
+		// STEP 3: Wait, then run keyword automations (claim-before-send).
+		//
+		// The delay is a BLOCKING wait INSIDE this step — not step.sleep. A
+		// sleeping run releases its concurrency slot (Inngest docs), so step.sleep
+		// would let every matching comment on an account wake and fire together.
+		// Blocking keeps the per-account slot (concurrency limit 1, keyed on the
+		// account) held for the whole wait + delivery, so matching comments on the
+		// same account drain one per random interval, while other accounts run in
+		// parallel. The claim-before-send inside runKeywordAutomation keeps a
+		// step retry from double-posting.
 		// ──────────────────────────────────────────────────────────────
 		const automationHandled = await step.run(
 			"check-keyword-automation",
 			async () => {
+				if (delaySeconds > 0) {
+					await new Promise((resolve) =>
+						setTimeout(resolve, delaySeconds * 1000),
+					);
+				}
 				const result = await runKeywordAutomation({
 					platform: parsed.platform,
 					platformAccountId: parsed.platformAccountId,
