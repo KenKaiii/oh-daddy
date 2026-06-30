@@ -93,6 +93,10 @@ export default function SetupPage() {
 		null,
 	);
 	const [loading, setLoading] = useState(true);
+	// The freshly generated webhook verify token, surfaced so the operator can
+	// copy it into Meta. Cleared once we navigate away — GET /api/settings never
+	// returns the stored value, so this is the only moment it's visible.
+	const [generatedVerifyToken, setGeneratedVerifyToken] = useState("");
 	// Per-item acknowledgement for the prerequisites step (gates its Next button).
 	const [prereqChecked, setPrereqChecked] = useState<Record<string, boolean>>(
 		{},
@@ -210,7 +214,31 @@ export default function SetupPage() {
 	}
 
 	async function generateAndSaveToken() {
-		await saveSetting("meta_webhook_verify_token", randomVerifyToken());
+		const token = randomVerifyToken();
+		await saveSetting("meta_webhook_verify_token", token);
+		// Surface the value so the operator can paste the SAME token into Meta.
+		setGeneratedVerifyToken(token);
+	}
+
+	// Convenience: Meta's Instagram business-login settings show a ready-made
+	// authorize URL (the “embed” link) with the app's client_id baked in. Let the
+	// operator paste that whole URL; we pull out client_id and store it as the
+	// Instagram App ID. We deliberately don't persist the URL itself — the connect
+	// flow builds its own authorize URL with a fresh CSRF state each time.
+	async function saveAppIdFromLoginUrl(raw: string) {
+		let clientId: string | null = null;
+		try {
+			clientId = new URL(raw.trim()).searchParams.get("client_id");
+		} catch {
+			clientId = null;
+		}
+		if (!clientId || !/^\d+$/.test(clientId)) {
+			notify.error(
+				"Couldn't find a client_id in that URL. Paste the full Instagram login URL Meta shows.",
+			);
+			return;
+		}
+		await saveSetting("instagram_app_id", clientId);
 	}
 
 	function markSelfDone(id: SetupStepId) {
@@ -277,19 +305,28 @@ export default function SetupPage() {
 	const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(appUrl);
 
 	const verifyTokenField = (
-		<PasteField
-			label="Webhook Verify Token"
-			provider="meta_webhook_verify_token"
-			placeholder="a-random-string-you-choose"
-			isSet={isSet("meta_webhook_verify_token")}
-			onSave={(v) => saveSetting("meta_webhook_verify_token", v)}
-			rightSlot={
-				<Button variant="outline" size="sm" onClick={generateAndSaveToken}>
-					Generate
-				</Button>
-			}
-			hint="Use the exact same value in the Meta webhook setup so the handshake matches. The same token works for both the Instagram and Page objects."
-		/>
+		<>
+			<PasteField
+				label="Webhook Verify Token"
+				provider="meta_webhook_verify_token"
+				placeholder="a-random-string-you-choose"
+				isSet={isSet("meta_webhook_verify_token")}
+				onSave={(v) => saveSetting("meta_webhook_verify_token", v)}
+				rightSlot={
+					<Button variant="outline" size="sm" onClick={generateAndSaveToken}>
+						Generate
+					</Button>
+				}
+				hint="Use the exact same value in the Meta webhook setup so the handshake matches. The same token works for both the Instagram and Page objects."
+			/>
+			{generatedVerifyToken && (
+				<CopyField
+					label="Generated token — copy it into Meta"
+					value={generatedVerifyToken}
+					hint="Saved here already. Paste this exact value as the Verify Token in the Meta webhook setup. It won't be shown again after you leave this page."
+				/>
+			)}
+		</>
 	);
 
 	function renderBody(id: SetupStepId) {
@@ -445,6 +482,14 @@ export default function SetupPage() {
 										: "Must match exactly (scheme, host, path)."}
 								</>
 							}
+						/>
+						<PasteField
+							label="Instagram login URL (optional shortcut)"
+							provider="instagram_app_id"
+							placeholder="https://www.instagram.com/oauth/authorize?client_id=…"
+							isSet={isSet("instagram_app_id")}
+							onSave={saveAppIdFromLoginUrl}
+							hint="After you save the redirect URI, Meta shows a ready-made login URL. Paste it here and we'll pull your Instagram App ID out of it (we don't store the URL itself). The Set badge reflects your App ID."
 						/>
 					</>
 				);
