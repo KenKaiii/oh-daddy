@@ -16,7 +16,7 @@ Next.js 16 (App Router) · React 19 · TypeScript · raw `postgres` (porsager, n
 - Start command is `scripts/start.sh` (wired via `railway.json` → `deploy.startCommand`), NOT `npm run start` directly: it backgrounds `scripts/post-deploy-sync.mjs` (re-syncs Inngest on every deploy), then `exec`s `npm run start`.
 
 ## Architecture
-- **Core flow:** `api/webhooks/meta` (HMAC-verifies, logs to `webhook_events`, enqueues `comment/process` with a dedup id) → `src/inngest/functions/process-comment.ts` (only Inngest function: ingest contact/conversation/message, skip own/empty comments) → `src/lib/automations/run-automation.ts` (keyword match, 24h per-contact cooldown, **claims `automation_matches` row before any Meta API call** for safe retries, then public reply + Private Replies DM).
+- **Core flow:** `api/webhooks/meta` (HMAC-verifies, logs to `webhook_events`, enqueues `comment/process` with a dedup id) → `src/inngest/functions/process-comment.ts` (real-time contact/conversation/message ingestion, skip own/empty comments, fan out matches) → `src/inngest/functions/automation-send.ts` (optional delay + throttled delivery) → `src/lib/automations/run-automation.ts` (keyword match, 24h per-contact cooldown, **claims `automation_matches` row before any Meta API call** for safe retries, then public reply + Private Replies DM).
 - **Platform calls:** `src/lib/platforms/` adapters (`getAdapter`); discovery + token storage in `meta-discovery.ts`.
 - **DB:** `getDb()` from `src/lib/db.ts` (lazy single pool). 8 tables + row types hand-written in `src/types/db.ts`. Unique-violation = code `23505`.
 
