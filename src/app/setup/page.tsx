@@ -12,6 +12,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { CopyButton } from "@/components/ui/copy-button";
+import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/api-client";
 import {
 	appBasicSettingsUrl,
@@ -319,13 +322,6 @@ export default function SetupPage() {
 				}
 				hint="Use the exact same value in the Meta webhook setup so the handshake matches. The same token works for both the Instagram and Page objects."
 			/>
-			{generatedVerifyToken && (
-				<CopyField
-					label="Generated token — copy it into Meta"
-					value={generatedVerifyToken}
-					hint="Saved here already. Paste this exact value as the Verify Token in the Meta webhook setup. It won't be shown again after you leave this page."
-				/>
-			)}
 		</>
 	);
 
@@ -834,6 +830,30 @@ export default function SetupPage() {
 					</CardContent>
 				</Card>
 			)}
+
+			{/* After Generate: the token is already saved to the system. Surface it
+			    once in a modal so the operator can copy the SAME value into Meta — it
+			    is never shown again (GET /api/settings doesn't return secrets). */}
+			<Dialog
+				open={!!generatedVerifyToken}
+				onClose={() => setGeneratedVerifyToken("")}
+			>
+				<DialogHeader
+					title="Webhook verify token generated"
+					description="Saved to this app already. Copy it now and paste the exact same value as the Verify Token in the Meta webhook setup — it won't be shown again."
+				/>
+				<div className="flex items-center gap-2">
+					<Input
+						readOnly
+						value={generatedVerifyToken}
+						className="font-mono text-xs"
+					/>
+					<CopyButton value={generatedVerifyToken} />
+				</div>
+				<DialogFooter>
+					<Button onClick={() => setGeneratedVerifyToken("")}>Done</Button>
+				</DialogFooter>
+			</Dialog>
 		</div>
 	);
 }
