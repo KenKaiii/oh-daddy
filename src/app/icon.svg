@@ -1,0 +1,13 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Oh Daddy">
+  <title>Oh Daddy</title>
+  <!-- Black squircle (iOS-style rounded corners), near-black canvas #0a0a0f -->
+  <rect x="16" y="16" width="480" height="480" rx="118" fill="#0a0a0f"/>
+  <rect x="16.5" y="16.5" width="479" height="479" rx="117.5" fill="none" stroke="#262631" stroke-width="1"/>
+  <!-- ASCII-art "O" in electric-violet accent #6d6dfb -->
+  <text x="256" y="256"
+        font-family="'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace"
+        font-size="64" font-weight="700"
+        fill="#6d6dfb"
+        text-anchor="middle" dominant-baseline="central"
+        xml:space="preserve"><tspan x="256" dy="-2.625em">.oOOOo.</tspan><tspan x="256" dy="1.05em">o     o</tspan><tspan x="256" dy="1.05em">O     O</tspan><tspan x="256" dy="1.05em">O     O</tspan><tspan x="256" dy="1.05em">o     o</tspan><tspan x="256" dy="1.05em">'oOOOo'</tspan></text>
+</svg>
