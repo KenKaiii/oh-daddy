@@ -12,9 +12,9 @@
  * alone):
  *   1. platform_accounts.access_token — encrypt real Page/user tokens. Skips
  *      sentinels ("" / "pending" / "mock-*") and already-encrypted blobs.
- *   2. settings — encrypt every remaining (provider, value) row, including
- *      Meta/Instagram app secrets and the webhook verify token saved by the
- *      in-app Setup wizard.
+ *   2. settings — delete legacy blank rows (preserves env fallback), then encrypt
+ *      every remaining (provider, value) row, including Meta/Instagram app
+ *      secrets and the webhook verify token saved by the in-app Setup wizard.
  *
  * NEVER logs plaintext or ciphertext — only row ids / providers / counts.
  *
@@ -74,6 +74,7 @@ async function main() {
 	let tokensEncrypted = 0;
 	let tokensSkipped = 0;
 	let settingsEncrypted = 0;
+	let settingsBlankDeleted = 0;
 
 	try {
 		// 1. platform_accounts.access_token
@@ -96,6 +97,14 @@ async function main() {
 		// 2. settings
 		const settings = await sql`SELECT provider, value FROM settings`;
 		for (const row of settings) {
+			if (String(row.value).trim() === "") {
+				await sql`DELETE FROM settings WHERE provider = ${row.provider}`;
+				settingsBlankDeleted++;
+				console.log(
+					`[settings] deleted blank value for provider: ${row.provider}`,
+				);
+				continue;
+			}
 			if (isEncrypted(row.value)) continue;
 			const encrypted = encryptSecret(row.value, key);
 			await sql`
@@ -107,7 +116,7 @@ async function main() {
 
 		console.log(
 			`\nDone. tokens: ${tokensEncrypted} encrypted, ${tokensSkipped} skipped (sentinel/encrypted). ` +
-				`settings: ${settingsEncrypted} encrypted.`,
+				`settings: ${settingsEncrypted} encrypted, ${settingsBlankDeleted} blank rows deleted.`,
 		);
 	} finally {
 		await sql.end({ timeout: 5 });
