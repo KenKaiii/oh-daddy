@@ -20,9 +20,9 @@ $$ LANGUAGE plpgsql;
 
 -- ============================================================
 -- 1. settings — credential store (env is the fallback)
--- Values are encrypted at rest (AES-256-GCM, enc:v1: blobs) by the app; the
--- integrity-gating secrets (meta_app_secret, meta_webhook_verify_token) are
--- env-only and never stored here (BP-001). See src/lib/crypto.ts.
+-- Values are encrypted at rest (AES-256-GCM, enc:v1: blobs) by the app. The
+-- in-app Setup wizard stores Meta/Instagram credentials here; env vars remain a
+-- fallback for manual/legacy installs. See src/lib/crypto.ts.
 -- ============================================================
 CREATE TABLE IF NOT EXISTS settings (
   provider text PRIMARY KEY,

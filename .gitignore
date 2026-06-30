@@ -41,4 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 # agent scratch
-.gg/
+.gg/*
+!.gg/commands/
+.gg/commands/*
+!.gg/commands/setup-railway.md

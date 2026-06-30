@@ -12,10 +12,9 @@
  * alone):
  *   1. platform_accounts.access_token — encrypt real Page/user tokens. Skips
  *      sentinels ("" / "pending" / "mock-*") and already-encrypted blobs.
- *   2. settings — encrypt remaining (provider, value) rows. Deletes any leftover
- *      env-only secret rows (meta_app_secret / meta_webhook_verify_token): they
- *      are ignored at read time (BP-001) yet would otherwise sit in the DB as
- *      plaintext secrets.
+ *   2. settings — encrypt every remaining (provider, value) row, including
+ *      Meta/Instagram app secrets and the webhook verify token saved by the
+ *      in-app Setup wizard.
  *
  * NEVER logs plaintext or ciphertext — only row ids / providers / counts.
  *
@@ -31,11 +30,6 @@ const KEY_BYTES = 32;
 const IV_BYTES = 12;
 
 const TOKEN_SENTINELS = new Set(["", "pending"]);
-const ENV_ONLY_PROVIDERS = new Set([
-	"meta_app_secret",
-	"meta_webhook_verify_token",
-]);
-
 function getKey() {
 	const raw = process.env.APP_ENCRYPTION_KEY?.trim();
 	if (!raw) {
@@ -80,7 +74,6 @@ async function main() {
 	let tokensEncrypted = 0;
 	let tokensSkipped = 0;
 	let settingsEncrypted = 0;
-	let settingsDeleted = 0;
 
 	try {
 		// 1. platform_accounts.access_token
@@ -103,14 +96,6 @@ async function main() {
 		// 2. settings
 		const settings = await sql`SELECT provider, value FROM settings`;
 		for (const row of settings) {
-			if (ENV_ONLY_PROVIDERS.has(row.provider)) {
-				await sql`DELETE FROM settings WHERE provider = ${row.provider}`;
-				settingsDeleted++;
-				console.log(
-					`[settings] deleted env-only plaintext row: ${row.provider}`,
-				);
-				continue;
-			}
 			if (isEncrypted(row.value)) continue;
 			const encrypted = encryptSecret(row.value, key);
 			await sql`
@@ -122,7 +107,7 @@ async function main() {
 
 		console.log(
 			`\nDone. tokens: ${tokensEncrypted} encrypted, ${tokensSkipped} skipped (sentinel/encrypted). ` +
-				`settings: ${settingsEncrypted} encrypted, ${settingsDeleted} env-only rows deleted.`,
+				`settings: ${settingsEncrypted} encrypted.`,
 		);
 	} finally {
 		await sql.end({ timeout: 5 });

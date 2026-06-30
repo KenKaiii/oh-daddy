@@ -1,9 +1,9 @@
 /**
  * Resolve a settings key from the `settings` DB table, falling back to env.
  *
- * The Settings UI saves Meta credentials into the `settings` table as plain
- * `(provider, value)` rows. This function checks the DB first, then falls
- * back to the corresponding environment variable so an env-only setup also
+ * The Settings UI saves Meta/Instagram credentials into the `settings` table as
+ * encrypted `(provider, value)` rows. This function checks the DB first, then
+ * falls back to the corresponding environment variable so an env-only setup also
  * works.
  *
  * Provider → env fallback mapping:

@@ -25,9 +25,6 @@
 #
 # Optional env in:
 #   RAILWAY_WORKSPACE         (workspace id/name; required if you have >1)
-#   INNGEST_BASE_URL          (self-hosted Inngest server URL; if the Inngest
-#                              service isn't provisioned yet, leave unset and
-#                              wire it after — see step 5 of /setup-railway)
 #   RAILWAY_PROJECT_NAME      (default: oh-daddy)
 #   APP_SERVICE_NAME          (default: oh-daddy)
 #   DB_SERVICE_NAME           (default: Postgres)
@@ -162,7 +159,9 @@ else
 fi
 
 # Share the server's keys + URL with the app (references resolve at deploy time;
-# always in lockstep with the server, even if the server rotates them).
+# always in lockstep with the server, even if the server rotates them). The app's
+# public URL is registered separately by scripts/post-deploy-sync.mjs; do not
+# register the SDK with localhost.
 set_plain INNGEST_SIGNING_KEY "\${{${INNGEST_SVC}.INNGEST_SIGNING_KEY}}"
 set_plain INNGEST_EVENT_KEY "\${{${INNGEST_SVC}.INNGEST_EVENT_KEY}}"
 set_plain INNGEST_BASE_URL "https://\${{${INNGEST_SVC}.RAILWAY_PUBLIC_DOMAIN}}"
@@ -228,8 +227,9 @@ else
 fi
 
 # ── Register the app with the self-hosted Inngest server ─────────────────────
-# A PUT to the app's /api/inngest makes it sync its functions to the server at
-# INNGEST_BASE_URL. Best-effort: needs the deploy to be live, so we retry.
+# A PUT to the app's PUBLIC /api/inngest makes it sync its functions to the
+# server at INNGEST_BASE_URL with a publicly reachable SDK callback URL.
+# Best-effort: needs the deploy to be live, so we retry.
 #
 # NOTE: every deploy ALSO self-syncs on boot via the start command
 # (railway.json -> scripts/start.sh -> scripts/post-deploy-sync.mjs), so adding
