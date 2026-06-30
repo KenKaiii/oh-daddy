@@ -23,11 +23,21 @@ export async function GET() {
 				  AND access_token <> '' AND access_token <> 'pending'`,
 			sql<{ count: number }[]>`
 				SELECT count(*)::int AS count FROM comment_automations WHERE is_active = true`,
-			sql<
-				{ count: number }[]
-			>`SELECT count(*)::int AS count FROM webhook_events`,
+			// Real comments we ingested — i.e. inbound ('user') messages on comment
+			// conversations. process-comment only stores comments on posts an active
+			// automation tracks, so this is "tracked comments", not raw webhook
+			// traffic (which also includes DMs, reads and reactions).
 			sql<{ count: number }[]>`
-				SELECT count(*)::int AS count FROM webhook_events WHERE created_at > ${since}`,
+				SELECT count(*)::int AS count
+				FROM messages m
+				JOIN conversations c ON c.id = m.conversation_id
+				WHERE m.role = 'user' AND c.interaction_type = 'comment'`,
+			sql<{ count: number }[]>`
+				SELECT count(*)::int AS count
+				FROM messages m
+				JOIN conversations c ON c.id = m.conversation_id
+				WHERE m.role = 'user' AND c.interaction_type = 'comment'
+				  AND m.created_at > ${since}`,
 			sql<{ count: number }[]>`
 				SELECT count(*)::int AS count FROM automation_matches WHERE comment_reply_sent = true`,
 			sql<{ count: number }[]>`

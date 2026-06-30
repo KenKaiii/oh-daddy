@@ -86,6 +86,26 @@ export const processComment = inngest.createFunction(
 				return { status: "skipped-empty-body" as const };
 			}
 
+			// Skip comments on posts no active automation is tracking. Mirrors the
+			// loadAutomations selection: a scope='meta' rule tracks everything; an
+			// account rule tracks all that account's posts (platform_post_id IS NULL)
+			// or one specific post. Without this we'd store — and count — comments
+			// from every post on the account, not just the ones being automated.
+			const [tracked] = await sql<{ one: number }[]>`
+				SELECT 1 AS one FROM comment_automations
+				WHERE is_active = true
+				  AND (
+				    scope = 'meta'
+				    OR (
+				      platform_account_id = ${parsed.platformAccountId}
+				      AND (platform_post_id IS NULL OR platform_post_id = ${normalized.platformPostId})
+				    )
+				  )
+				LIMIT 1`;
+			if (!tracked) {
+				return { status: "skipped-untracked-post" as const };
+			}
+
 			// Upsert contact. COALESCE keeps an existing name/username/avatar when
 			// this delivery doesn't carry one (don't overwrite with null).
 			const [contact] = await sql<{ id: string }[]>`
