@@ -262,27 +262,6 @@ export default function SetupPage() {
 		}
 	}
 
-	// Convenience: Meta's Instagram business-login settings show a ready-made
-	// authorize URL (the “embed” link) with the app's client_id baked in. Let the
-	// operator paste that whole URL; we pull out client_id and store it as the
-	// Instagram App ID. We deliberately don't persist the URL itself — the connect
-	// flow builds its own authorize URL with a fresh CSRF state each time.
-	async function saveAppIdFromLoginUrl(raw: string) {
-		let clientId: string | null = null;
-		try {
-			clientId = new URL(raw.trim()).searchParams.get("client_id");
-		} catch {
-			clientId = null;
-		}
-		if (!clientId || !/^\d+$/.test(clientId)) {
-			notify.error(
-				"Couldn't find a client_id in that URL. Paste the full Instagram login URL Meta shows.",
-			);
-			return;
-		}
-		await saveSetting("instagram_app_id", clientId);
-	}
-
 	function markSelfDone(id: SetupStepId) {
 		setSelfDone((prev) => ({ ...prev, [id]: true }));
 		localStorage.setItem(SELF_KEY(id), "1");
@@ -463,21 +442,6 @@ export default function SetupPage() {
 							isSet={isSet("instagram_app_id")}
 							onSave={(v) => saveSetting("instagram_app_id", v)}
 						/>
-						<div className="space-y-1.5">
-							<p className="text-xs text-muted-foreground">
-								Connecting requests these Instagram permissions automatically:
-							</p>
-							<div className="flex flex-wrap gap-1.5">
-								{INSTAGRAM_PERMISSION_LIST.map((p) => (
-									<span
-										key={p}
-										className="rounded-full bg-muted px-2.5 py-0.5 font-mono text-[11px] text-foreground/80"
-									>
-										{p}
-									</span>
-								))}
-							</div>
-						</div>
 					</>
 				);
 			case "ig-app-secret":
@@ -505,11 +469,11 @@ export default function SetupPage() {
 						/>
 					</>
 				);
-			case "ig-redirect-uri":
+			case "ig-permissions":
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
-							In the same{" "}
+							On the same{" "}
 							{appId ? (
 								<ExtLink href={appInstagramSetupUrl(appId)}>
 									API setup with Instagram login
@@ -517,7 +481,65 @@ export default function SetupPage() {
 							) : (
 								<>API setup with Instagram login</>
 							)}{" "}
-							tab, find <strong>Set up Instagram business login</strong> and
+							page, find <strong>1. Add required messaging permissions</strong>{" "}
+							and click <strong>Add permissions</strong>. This grants the
+							permissions the app uses to read comments and send replies:
+						</p>
+						<div className="flex flex-wrap gap-1.5">
+							{INSTAGRAM_PERMISSION_LIST.map((p) => (
+								<span
+									key={p}
+									className="rounded-full bg-muted px-2.5 py-0.5 font-mono text-[11px] text-foreground/80"
+								>
+									{p}
+								</span>
+							))}
+						</div>
+					</>
+				);
+			case "ig-webhooks":
+				return (
+					<>
+						<p className="text-sm text-muted-foreground">
+							On the same{" "}
+							{appId ? (
+								<ExtLink href={appInstagramSetupUrl(appId)}>
+									API setup with Instagram login
+								</ExtLink>
+							) : (
+								<>API setup with Instagram login</>
+							)}{" "}
+							page, find <strong>3. Configure webhooks</strong>. Paste the{" "}
+							<strong>Callback URL</strong> first, then the{" "}
+							<strong>Verify Token</strong>, click{" "}
+							<strong>Verify and save</strong>, then subscribe to the{" "}
+							<strong>comments</strong> field.
+						</p>
+						<CopyField
+							label="Callback URL"
+							value={webhookUrl}
+							hint={
+								isLocal
+									? "You're on localhost — expose this with a tunnel and use that URL in Meta."
+									: "Paste into Meta as the webhook callback URL."
+							}
+						/>
+						{verifyTokenField}
+					</>
+				);
+			case "ig-redirect-uri":
+				return (
+					<>
+						<p className="text-sm text-muted-foreground">
+							On the same{" "}
+							{appId ? (
+								<ExtLink href={appInstagramSetupUrl(appId)}>
+									API setup with Instagram login
+								</ExtLink>
+							) : (
+								<>API setup with Instagram login</>
+							)}{" "}
+							page, find <strong>4. Set up Instagram business login</strong> and
 							open its settings.
 						</p>
 						<CopyField
@@ -533,42 +555,11 @@ export default function SetupPage() {
 								</>
 							}
 						/>
-						<PasteField
-							label="Instagram login URL (optional shortcut)"
-							provider="instagram_app_id"
-							placeholder="https://www.instagram.com/oauth/authorize?client_id=…"
-							isSet={isSet("instagram_app_id")}
-							onSave={saveAppIdFromLoginUrl}
-							hint="After you save the redirect URI, Meta shows a ready-made login URL. Paste it here and we'll pull your Instagram App ID out of it (we don't store the URL itself). The Set badge reflects your App ID."
-						/>
-					</>
-				);
-			case "ig-webhooks":
-				return (
-					<>
-						<p className="text-sm text-muted-foreground">
-							Generate a verify token, then in the same{" "}
-							{appId ? (
-								<ExtLink href={appInstagramSetupUrl(appId)}>
-									API setup with Instagram login
-								</ExtLink>
-							) : (
-								<>API setup with Instagram login</>
-							)}{" "}
-							tab, open the <strong>Webhooks</strong> section (“Get real-time
-							notifications”). Paste the callback URL and token, verify, then
-							subscribe to the <strong>comments</strong> field.
+						<p className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+							Meta shows an <strong>Embed URL</strong> after you save — you
+							don't need to copy it anywhere. The app builds its own login URL
+							when you connect.
 						</p>
-						{verifyTokenField}
-						<CopyField
-							label="Callback URL"
-							value={webhookUrl}
-							hint={
-								isLocal
-									? "You're on localhost — expose this with a tunnel and use that URL in Meta."
-									: "Paste into Meta as the webhook callback URL."
-							}
-						/>
 					</>
 				);
 			// ── Facebook Page (optional) ─────────────────────────────────
@@ -576,10 +567,9 @@ export default function SetupPage() {
 				return (
 					<>
 						<p className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-							Everything from here to the Connect step is{" "}
-							<strong>optional</strong> and only needed to connect Facebook
-							Pages. Instagram-only? Click <strong>Next</strong> to skip
-							straight to Connect.
+							The next few steps are <strong>optional</strong> and only needed
+							to connect Facebook Pages. Instagram-only? Click{" "}
+							<strong>Next</strong> to skip the Facebook steps.
 						</p>
 						<p className="text-sm text-muted-foreground">
 							Go to{" "}
@@ -745,9 +735,8 @@ export default function SetupPage() {
 					<>
 						<p className="text-sm text-muted-foreground">
 							While your app is in Development mode, Meta only lets accounts
-							with an explicit role connect through the login flow. Add your
-							Instagram account as a tester so you can connect it here. Every
-							Instagram account you connect needs to be added as a tester.
+							with an explicit role connect through the login flow. Add each
+							Instagram account you want to connect as a tester.
 						</p>
 						<ol className="space-y-3 text-sm text-muted-foreground">
 							<li>
@@ -755,10 +744,17 @@ export default function SetupPage() {
 									1. Add your Instagram account as a tester
 								</span>
 								<br />
-								In the Meta app dashboard, go to <strong>Roles</strong> → click{" "}
-								<strong>Add People</strong> → choose{" "}
-								<strong>Instagram Tester</strong> → enter your Instagram
-								username.
+								On the same{" "}
+								{appId ? (
+									<ExtLink href={appInstagramSetupUrl(appId)}>
+										API setup with Instagram login
+									</ExtLink>
+								) : (
+									<>API setup with Instagram login</>
+								)}{" "}
+								page, find <strong>2. Generate access tokens</strong> → click{" "}
+								<strong>Add Instagram testers</strong> → enter your Instagram
+								username and send the invite.
 							</li>
 							<li>
 								<span className="font-semibold text-foreground">
@@ -776,11 +772,10 @@ export default function SetupPage() {
 							</li>
 							<li>
 								<span className="font-semibold text-foreground">
-									3. Come back and connect
+									3. Continue setup
 								</span>
 								<br />
-								Once accepted, return here and click Next to connect your
-								account.
+								Once accepted, click <strong>Next</strong> to keep going.
 							</li>
 						</ol>
 					</>

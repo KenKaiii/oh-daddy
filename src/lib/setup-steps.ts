@@ -17,19 +17,20 @@ import type { SettingsProvider } from "@/lib/settings";
 export const SETUP_STEP_IDS = [
 	"prerequisites",
 	"create-app",
-	// Instagram (required)
+	// Instagram (required) — follows Meta's "API setup with Instagram login"
+	// page top-to-bottom: app id/secret, then its numbered sections 1–4.
 	"ig-app-id",
 	"ig-app-secret",
-	"ig-redirect-uri",
+	"ig-permissions",
+	"ig-tester",
 	"ig-webhooks",
+	"ig-redirect-uri",
 	// Facebook Page (optional)
 	"fb-app-id",
 	"fb-app-secret",
 	"fb-redirect-uri",
 	"fb-config-id",
 	"fb-webhooks",
-	// Pre-connect (dev mode)
-	"ig-tester",
 	// Go live (required for comment webhooks to fire)
 	"legal-urls",
 	"publish-app",
@@ -92,15 +93,29 @@ export const SETUP_STEPS: readonly SetupStepMeta[] = [
 		completion: { kind: "settings", provider: "instagram_app_secret" },
 	},
 	{
-		id: "ig-redirect-uri",
-		title: "Instagram Redirect URI",
-		summary: "OAuth redirect URI registered under Instagram login settings.",
+		id: "ig-permissions",
+		title: "Add Instagram permissions",
+		summary:
+			"Click Add permissions under the required messaging permissions section.",
+		completion: { kind: "self" },
+	},
+	{
+		id: "ig-tester",
+		title: "Add Instagram tester",
+		summary:
+			"Add your Instagram account as a tester so the app can connect it.",
 		completion: { kind: "self" },
 	},
 	{
 		id: "ig-webhooks",
 		title: "Instagram Webhooks",
 		summary: "Subscribe the Instagram object to comment events.",
+		completion: { kind: "self" },
+	},
+	{
+		id: "ig-redirect-uri",
+		title: "Instagram Redirect URI",
+		summary: "OAuth redirect URI registered under Instagram login settings.",
 		completion: { kind: "self" },
 	},
 	// ── Facebook Page (optional) ────────────────────────────────────────
@@ -138,14 +153,6 @@ export const SETUP_STEPS: readonly SetupStepMeta[] = [
 		summary: "Optional — subscribe the Page object to the feed field.",
 		completion: { kind: "self" },
 		optional: true,
-	},
-	// ── Pre-connect (dev mode) ──────────────────────────────────────────
-	{
-		id: "ig-tester",
-		title: "Add Instagram tester",
-		summary:
-			"Add your Instagram account as a tester so the app can connect it.",
-		completion: { kind: "self" },
 	},
 	// ── Go live (required for comment webhooks to fire) ─────────────────
 	{
