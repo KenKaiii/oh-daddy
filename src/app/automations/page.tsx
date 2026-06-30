@@ -31,11 +31,19 @@ interface Automation {
 	fuzzy_threshold: number;
 	comment_replies: string[];
 	dm_message: string;
-	dm_link: string | null;
 	match_count: number;
 	platform_account_id: string | null;
+	platform_post_id: string | null;
 	scope: "meta" | null;
 	platform_account: AccountLite | null;
+}
+
+interface PlatformPost {
+	id: string;
+	caption: string;
+	thumbnailUrl: string | null;
+	permalink: string | null;
+	timestamp: string | null;
 }
 
 interface FormState {
@@ -44,9 +52,9 @@ interface FormState {
 	fuzzy_threshold: number;
 	comment_replies: string[];
 	dm_message: string;
-	dm_link: string;
 	is_active: boolean;
 	target: string; // "meta" | account uuid
+	platform_post_id: string | null; // null = all posts on the target account
 }
 
 const EMPTY_FORM: FormState = {
@@ -55,10 +63,22 @@ const EMPTY_FORM: FormState = {
 	fuzzy_threshold: 2,
 	comment_replies: [""],
 	dm_message: "",
-	dm_link: "",
 	is_active: true,
 	target: "meta",
+	platform_post_id: null,
 };
+
+/** Short, human label for a post option in the picker. */
+function postLabel(p: PlatformPost): string {
+	const caption = p.caption.trim().replace(/\s+/g, " ");
+	if (caption)
+		return caption.length > 60 ? `${caption.slice(0, 57)}…` : caption;
+	if (p.timestamp) {
+		const d = new Date(p.timestamp);
+		if (!Number.isNaN(d.getTime())) return `Post · ${d.toLocaleDateString()}`;
+	}
+	return `Post · ${p.id}`;
+}
 
 export default function AutomationsPage() {
 	const [automations, setAutomations] = useState<Automation[]>([]);
@@ -70,6 +90,8 @@ export default function AutomationsPage() {
 	const [editing, setEditing] = useState<Automation | null>(null);
 	const [form, setForm] = useState<FormState>(EMPTY_FORM);
 	const [saving, setSaving] = useState(false);
+	const [posts, setPosts] = useState<PlatformPost[]>([]);
+	const [postsLoading, setPostsLoading] = useState(false);
 	const confirm = useConfirm();
 
 	const load = useCallback(async () => {
@@ -99,6 +121,32 @@ export default function AutomationsPage() {
 		load();
 	}, [load]);
 
+	// Fetch the connected account's recent posts for the per-post picker. Keyed
+	// on the chosen target: "meta" (scope) has no posts, an account uuid loads
+	// that account's posts. Only runs while the dialog is open.
+	useEffect(() => {
+		if (!dialogOpen || form.target === "meta") {
+			setPosts([]);
+			return;
+		}
+		let cancelled = false;
+		setPostsLoading(true);
+		(async () => {
+			try {
+				const res = await apiFetch(`/api/accounts/${form.target}/posts`);
+				const json = await res.json();
+				if (!cancelled) setPosts(res.ok ? (json.data ?? []) : []);
+			} catch {
+				if (!cancelled) setPosts([]);
+			} finally {
+				if (!cancelled) setPostsLoading(false);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [dialogOpen, form.target]);
+
 	function openCreate() {
 		setEditing(null);
 		setForm(EMPTY_FORM);
@@ -113,9 +161,9 @@ export default function AutomationsPage() {
 			fuzzy_threshold: a.fuzzy_threshold,
 			comment_replies: a.comment_replies.length ? a.comment_replies : [""],
 			dm_message: a.dm_message,
-			dm_link: a.dm_link ?? "",
 			is_active: a.is_active,
 			target: a.scope === "meta" ? "meta" : (a.platform_account_id ?? "meta"),
+			platform_post_id: a.platform_post_id,
 		});
 		setDialogOpen(true);
 	}
@@ -194,10 +242,10 @@ export default function AutomationsPage() {
 				fuzzy_threshold: form.fuzzy_threshold,
 				comment_replies,
 				dm_message: form.dm_message,
-				dm_link: form.dm_link.trim() ? form.dm_link.trim() : null,
 				is_active: form.is_active,
 				platform_account_id: isScope ? null : form.target,
 				scope: isScope ? "meta" : null,
+				platform_post_id: isScope ? null : form.platform_post_id,
 			};
 
 			const url = editing
@@ -295,6 +343,7 @@ export default function AutomationsPage() {
 									{a.comment_replies.length} reply variant
 									{a.comment_replies.length === 1 ? "" : "s"} ·{" "}
 									{a.dm_message ? "DM on" : "no DM"} · {a.match_count} matches
+									{a.platform_post_id ? " · specific post" : ""}
 								</p>
 
 								<div className="mt-auto flex items-center gap-2 border-t border-border/60 pt-3">
@@ -351,7 +400,14 @@ export default function AutomationsPage() {
 							<Select
 								id="target"
 								value={form.target}
-								onChange={(e) => setForm({ ...form, target: e.target.value })}
+								onChange={(e) =>
+									// Switching the target invalidates any chosen post.
+									setForm({
+										...form,
+										target: e.target.value,
+										platform_post_id: null,
+									})
+								}
 							>
 								<option value="meta">All Meta accounts</option>
 								{accounts.map((acc) => (
@@ -361,6 +417,43 @@ export default function AutomationsPage() {
 								))}
 							</Select>
 						</div>
+
+						{form.target !== "meta" && (
+							<div className="space-y-1.5">
+								<Label htmlFor="post">Post</Label>
+								<Select
+									id="post"
+									value={form.platform_post_id ?? ""}
+									disabled={postsLoading}
+									onChange={(e) =>
+										setForm({
+											...form,
+											platform_post_id: e.target.value || null,
+										})
+									}
+								>
+									<option value="">All posts</option>
+									{/* Keep the saved post selectable even if it's not in
+									    the freshly fetched page. */}
+									{form.platform_post_id &&
+										!posts.some((p) => p.id === form.platform_post_id) && (
+											<option value={form.platform_post_id}>
+												Selected post
+											</option>
+										)}
+									{posts.map((p) => (
+										<option key={p.id} value={p.id}>
+											{postLabel(p)}
+										</option>
+									))}
+								</Select>
+								<p className="text-xs text-muted-foreground">
+									{postsLoading
+										? "Loading posts…"
+										: "Limit this automation to one post, or leave on all posts."}
+								</p>
+							</div>
+						)}
 
 						<div className="space-y-1.5">
 							<Label htmlFor="keywords">Keywords</Label>
@@ -453,16 +546,9 @@ export default function AutomationsPage() {
 								}
 								placeholder="Here's the link you asked for 👇"
 							/>
-						</div>
-
-						<div className="space-y-1.5">
-							<Label htmlFor="dmlink">DM link (optional)</Label>
-							<Input
-								id="dmlink"
-								value={form.dm_link}
-								onChange={(e) => setForm({ ...form, dm_link: e.target.value })}
-								placeholder="https://yoursite.com/free-guide"
-							/>
+							<p className="text-xs text-muted-foreground">
+								Include any link directly in the message.
+							</p>
 						</div>
 					</div>
 				</div>

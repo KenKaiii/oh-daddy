@@ -65,7 +65,7 @@ async function seed(
 		keywords?: string[];
 		commentReplies?: string[];
 		dmMessage?: string;
-		dmLink?: string | null;
+		platformPostId?: string | null;
 		platformMessageId?: string;
 		platformUserId?: string;
 	} = {},
@@ -90,13 +90,13 @@ async function seed(
 		RETURNING id`;
 	const [automation] = await sql<{ id: string }[]>`
 		INSERT INTO comment_automations
-			(platform_account_id, name, keywords, comment_replies, dm_message, dm_link)
+			(platform_account_id, name, keywords, comment_replies, dm_message, platform_post_id)
 		VALUES (
 			${account.id}, 'Lead magnet',
 			${overrides.keywords ?? ["guide"]},
 			${overrides.commentReplies ?? ["Check your DMs!"]},
 			${overrides.dmMessage ?? "Here is the guide"},
-			${overrides.dmLink ?? null}
+			${overrides.platformPostId ?? null}
 		)
 		RETURNING id`;
 
@@ -110,7 +110,11 @@ async function seed(
 	};
 }
 
-function runFor(s: Seed, messageId = s.messageId) {
+function runFor(
+	s: Seed,
+	messageId = s.messageId,
+	platformPostId: string | null = null,
+) {
 	return runKeywordAutomation({
 		platform: "facebook",
 		platformAccountId: s.accountId,
@@ -121,6 +125,7 @@ function runFor(s: Seed, messageId = s.messageId) {
 		contactId: s.contactId,
 		commentText: "guide",
 		platformMessageId: s.platformMessageId,
+		platformPostId,
 	});
 }
 
@@ -203,6 +208,40 @@ suite("runKeywordAutomation (real Postgres)", () => {
 		// The public reply was posted exactly once despite the race.
 		expect(adapter.postCommentReply).toHaveBeenCalledTimes(1);
 		expect(await sql`SELECT id FROM automation_matches`).toHaveLength(1);
+	});
+
+	it("a post-specific automation fires only on the matching post", async () => {
+		const s = await seed({ platformPostId: "post-X" });
+
+		// Wrong post → no match, no Meta calls, no match row.
+		const miss = await runFor(s, s.messageId, "post-Y");
+		expect(miss).toEqual({ matched: false });
+		expect(adapter.postCommentReply).not.toHaveBeenCalled();
+		expect(await sql`SELECT id FROM automation_matches`).toHaveLength(0);
+
+		// Right post → fires.
+		const hit = await runFor(s, s.messageId, "post-X");
+		expect(hit).toMatchObject({ matched: true, duplicate: false });
+		expect(await sql`SELECT id FROM automation_matches`).toHaveLength(1);
+	});
+
+	it("prefers a post-specific rule over an all-posts rule on the same account", async () => {
+		const s = await seed({ platformPostId: null });
+		const [specific] = await sql<{ id: string }[]>`
+			INSERT INTO comment_automations
+				(platform_account_id, name, keywords, comment_replies, dm_message, platform_post_id)
+			VALUES (
+				${s.accountId}, 'Post rule', ${["guide"]}, ${["Post DMs!"]},
+				'Here is the guide', 'post-X'
+			)
+			RETURNING id`;
+
+		const result = await runFor(s, s.messageId, "post-X");
+		expect(result).toMatchObject({
+			matched: true,
+			duplicate: false,
+			automationId: specific.id,
+		});
 	});
 
 	it("falls back to a scope='meta' automation when no account rule exists", async () => {

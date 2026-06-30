@@ -73,13 +73,13 @@ export type CommentAutomationRow = {
 	id: string;
 	platform_account_id: string | null;
 	scope: AutomationScope | null;
+	platform_post_id: string | null;
 	name: string;
 	is_active: boolean;
 	keywords: string[];
 	fuzzy_threshold: number;
 	comment_replies: string[];
 	dm_message: string;
-	dm_link: string | null;
 	match_count: number;
 	metadata: Json;
 	created_at: string;

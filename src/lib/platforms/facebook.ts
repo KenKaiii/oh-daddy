@@ -3,6 +3,7 @@ import type {
 	NormalizedContact,
 	NormalizedMessage,
 	PlatformAdapter,
+	PlatformPost,
 	PostCommentReplyParams,
 	SendPrivateReplyParams,
 } from "./types";
@@ -54,6 +55,14 @@ function normalizeTimestamp(t?: string | number): string {
 	}
 	const d = new Date(t);
 	return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
+
+interface FBPostData {
+	id: string;
+	message?: string;
+	full_picture?: string;
+	permalink_url?: string;
+	created_time?: string;
 }
 
 interface MetaApiErrorResponse {
@@ -172,5 +181,23 @@ export const facebookAdapter: PlatformAdapter = {
 			}),
 		});
 		return result.message_id;
+	},
+
+	async listPosts(
+		accessToken: string,
+		accountId: string,
+	): Promise<PlatformPost[]> {
+		const fields = "id,message,full_picture,permalink_url,created_time";
+		const url = `${GRAPH_API_BASE}/${graphNodeId(accountId)}/posts?fields=${fields}&limit=50`;
+		const result = await metaApiFetch<{ data?: FBPostData[] }>(url, {
+			headers: { Authorization: `Bearer ${accessToken}` },
+		});
+		return (result.data ?? []).map((p) => ({
+			id: p.id,
+			caption: p.message ?? "",
+			thumbnailUrl: p.full_picture ?? null,
+			permalink: p.permalink_url ?? null,
+			timestamp: p.created_time ? normalizeTimestamp(p.created_time) : null,
+		}));
 	},
 };

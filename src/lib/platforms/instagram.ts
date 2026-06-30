@@ -3,6 +3,7 @@ import type {
 	NormalizedContact,
 	NormalizedMessage,
 	PlatformAdapter,
+	PlatformPost,
 	PostCommentReplyParams,
 	SendPrivateReplyParams,
 } from "./types";
@@ -20,6 +21,15 @@ interface IGCommentData {
 	media?: { id: string };
 	timestamp?: string;
 	parent_id?: string;
+}
+
+interface IGMediaData {
+	id: string;
+	caption?: string;
+	media_url?: string;
+	thumbnail_url?: string;
+	permalink?: string;
+	timestamp?: string;
 }
 
 export const instagramAdapter: PlatformAdapter = {
@@ -83,5 +93,25 @@ export const instagramAdapter: PlatformAdapter = {
 			}),
 		});
 		return result.message_id;
+	},
+
+	async listPosts(
+		accessToken: string,
+		accountId: string,
+	): Promise<PlatformPost[]> {
+		const fields =
+			"id,caption,media_type,media_url,thumbnail_url,permalink,timestamp";
+		const url = `${IG_GRAPH_API_BASE}/${graphNodeId(accountId)}/media?fields=${fields}&limit=50`;
+		const result = await metaApiFetch<{ data?: IGMediaData[] }>(url, {
+			headers: { Authorization: `Bearer ${accessToken}` },
+		});
+		return (result.data ?? []).map((m) => ({
+			id: m.id,
+			caption: m.caption ?? "",
+			// Videos expose thumbnail_url; images only have media_url.
+			thumbnailUrl: m.thumbnail_url ?? m.media_url ?? null,
+			permalink: m.permalink ?? null,
+			timestamp: m.timestamp ?? null,
+		}));
 	},
 };

@@ -24,6 +24,11 @@ export interface RunKeywordAutomationParams {
 	commentText: string;
 	/** Platform-side comment id — required to post a public reply. */
 	platformMessageId: string | null;
+	/**
+	 * Platform-side id of the post the comment is on. Used to honor per-post
+	 * automation targeting; null when unknown (matches only all-posts rules).
+	 */
+	platformPostId: string | null;
 }
 
 export type RunKeywordAutomationResult =
@@ -63,12 +68,14 @@ export async function runKeywordAutomation(
 		contactId,
 		commentText,
 		platformMessageId,
+		platformPostId,
 	} = params;
 
 	const sql = getDb();
 
-	// 1. Load active automations — account-specific, then scope='meta'.
-	const automations = await loadAutomations(platformAccountId);
+	// 1. Load active automations — account-specific (post-specific first), then
+	// scope='meta'.
+	const automations = await loadAutomations(platformAccountId, platformPostId);
 
 	const match =
 		automations.length > 0
@@ -204,9 +211,8 @@ export async function runKeywordAutomation(
 		const [contactRow] = await sql<{ platform_user_id: string }[]>`
 			SELECT platform_user_id FROM contacts WHERE id = ${contactId}`;
 
-		const fullDm = match.automation.dm_link
-			? `${dmContent}\n\n${match.automation.dm_link}`
-			: dmContent;
+		// Any link the operator wants sent lives inside dm_message itself.
+		const fullDm = dmContent;
 
 		dmPlatformMessageId = await adapter.sendPrivateReply({
 			accessToken: ownAccessToken,
@@ -277,14 +283,23 @@ export async function runKeywordAutomation(
 /**
  * Load active automations for an incoming comment: account-specific first,
  * then the platform-wide `meta` scope (e.g. "All Meta accounts").
+ *
+ * Account-specific rows are filtered to those targeting this comment's post
+ * (`platform_post_id = postId`) or every post (`platform_post_id IS NULL`), and
+ * ordered post-specific first so an exact-post rule wins over a catch-all.
+ * Scope-wide automations always apply to all posts.
  */
 async function loadAutomations(
 	platformAccountId: string,
+	platformPostId: string | null,
 ): Promise<CommentAutomationRow[]> {
 	const sql = getDb();
 	const accountSpecific = await sql<CommentAutomationRow[]>`
 		SELECT * FROM comment_automations
-		WHERE platform_account_id = ${platformAccountId} AND is_active = true`;
+		WHERE platform_account_id = ${platformAccountId}
+		  AND is_active = true
+		  AND (platform_post_id IS NULL OR platform_post_id = ${platformPostId})
+		ORDER BY (platform_post_id IS NULL), created_at`;
 	if (accountSpecific.length > 0) return accountSpecific;
 
 	const scopeWide = await sql<CommentAutomationRow[]>`

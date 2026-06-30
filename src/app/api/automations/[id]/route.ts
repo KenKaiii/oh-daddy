@@ -39,13 +39,16 @@ export async function PATCH(
 	if (d.comment_replies !== undefined)
 		updates.comment_replies = d.comment_replies;
 	if (d.dm_message !== undefined) updates.dm_message = d.dm_message;
-	if (d.dm_link !== undefined) updates.dm_link = d.dm_link;
 	if (d.is_active !== undefined) updates.is_active = d.is_active;
 	// When swapping the target the XOR constraint requires both fields set
 	// together (the form sends both).
 	if (d.platform_account_id !== undefined)
 		updates.platform_account_id = d.platform_account_id;
 	if (d.scope !== undefined) updates.scope = d.scope;
+	// Per-post targeting is account-specific; a scope target forces it null.
+	if (d.platform_post_id !== undefined)
+		updates.platform_post_id =
+			d.scope != null ? null : (d.platform_post_id ?? null);
 
 	if (Object.keys(updates).length === 0) {
 		return Response.json({ error: "No fields to update" }, { status: 400 });

@@ -20,7 +20,7 @@ function automation(
 		fuzzy_threshold: 2,
 		comment_replies: [],
 		dm_message: "",
-		dm_link: null,
+		platform_post_id: null,
 		match_count: 0,
 		metadata: {},
 		created_at: "2026-01-01T00:00:00Z",

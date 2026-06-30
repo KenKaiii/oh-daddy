@@ -49,14 +49,19 @@ const harness = vi.hoisted(() => {
 	}
 
 	// Fake tagged-template `sql`. Routes by the (normalized) query text.
-	const sql = ((strings: TemplateStringsArray, ..._values: unknown[]) => {
+	const sql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
 		const text = strings.join(" ").replace(/\s+/g, " ").trim().toLowerCase();
 
 		const rows = (() => {
 			if (text.includes("from comment_automations")) {
 				if (text.includes("platform_account_id =")) {
 					events.push("load:account");
-					return config.accountAutomations;
+					// Mirror the SQL post-targeting filter: keep all-posts rows
+					// (platform_post_id IS NULL) plus rows matching this post id.
+					const postId = values[1] as string | null;
+					return config.accountAutomations.filter(
+						(a) => a.platform_post_id == null || a.platform_post_id === postId,
+					);
 				}
 				events.push("load:scope");
 				return config.scopeAutomations;
@@ -160,7 +165,7 @@ function automation(
 		fuzzy_threshold: 2,
 		comment_replies: ["Check your DMs!"],
 		dm_message: "Here is the guide",
-		dm_link: null,
+		platform_post_id: null,
 		match_count: 0,
 		metadata: {},
 		created_at: "2026-01-01T00:00:00Z",
@@ -182,6 +187,7 @@ function run(
 		contactId: "contact-1",
 		commentText: "guide",
 		platformMessageId: "fb-comment-1",
+		platformPostId: null,
 		...overrides,
 	});
 }
@@ -248,15 +254,47 @@ describe("runKeywordAutomation — happy path (reply + DM)", () => {
 		expect(sendPrivateReply).toHaveBeenCalledTimes(1);
 	});
 
-	it("appends dm_link to the DM body when configured", async () => {
+	it("sends the DM body verbatim (any link lives in the message)", async () => {
 		config.accountAutomations = [
-			automation({ dm_message: "Here you go", dm_link: "https://acme.com/g" }),
+			automation({ dm_message: "Here you go https://acme.com/g" }),
 		];
 		await run();
 
 		expect(sendPrivateReply).toHaveBeenCalledWith(
-			expect.objectContaining({ content: "Here you go\n\nhttps://acme.com/g" }),
+			expect.objectContaining({ content: "Here you go https://acme.com/g" }),
 		);
+	});
+});
+
+describe("runKeywordAutomation — per-post targeting", () => {
+	it("fires a post-specific automation only on the matching post", async () => {
+		config.accountAutomations = [
+			automation({ id: "post-x", platform_post_id: "post-X" }),
+		];
+		const result = await run({ platformPostId: "post-X" });
+
+		expect(result).toMatchObject({ matched: true, automationId: "post-x" });
+		expect(postCommentReply).toHaveBeenCalledTimes(1);
+	});
+
+	it("skips a post-specific automation on a different post", async () => {
+		config.accountAutomations = [
+			automation({ id: "post-x", platform_post_id: "post-X" }),
+		];
+		const result = await run({ platformPostId: "post-Y" });
+
+		expect(result).toEqual({ matched: false });
+		expect(postCommentReply).not.toHaveBeenCalled();
+		expect(sendPrivateReply).not.toHaveBeenCalled();
+	});
+
+	it("an all-posts automation still fires on any post", async () => {
+		config.accountAutomations = [
+			automation({ id: "all", platform_post_id: null }),
+		];
+		const result = await run({ platformPostId: "post-Z" });
+
+		expect(result).toMatchObject({ matched: true, automationId: "all" });
 	});
 });
 

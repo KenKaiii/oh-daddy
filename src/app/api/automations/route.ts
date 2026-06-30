@@ -40,17 +40,17 @@ export async function POST(request: NextRequest) {
 		const sql = getDb();
 		const [{ id }] = await sql<{ id: string }[]>`
 			INSERT INTO comment_automations
-				(platform_account_id, scope, name, keywords, fuzzy_threshold,
-				 comment_replies, dm_message, dm_link, is_active)
+				(platform_account_id, scope, platform_post_id, name, keywords,
+				 fuzzy_threshold, comment_replies, dm_message, is_active)
 			VALUES (
 				${parsed.data.platform_account_id ?? null},
 				${parsed.data.scope ?? null},
+				${parsed.data.platform_account_id ? (parsed.data.platform_post_id ?? null) : null},
 				${parsed.data.name.trim()},
 				${keywords},
 				${parsed.data.fuzzy_threshold},
 				${parsed.data.comment_replies},
 				${parsed.data.dm_message},
-				${parsed.data.dm_link ?? null},
 				${parsed.data.is_active}
 			)
 			RETURNING id`;

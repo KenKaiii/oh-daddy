@@ -115,13 +115,15 @@ CREATE TABLE IF NOT EXISTS comment_automations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   platform_account_id uuid REFERENCES platform_accounts (id) ON DELETE CASCADE,
   scope text CHECK (scope IN ('meta')),
+  -- Optional per-post targeting. NULL = all posts on the target account; a
+  -- value = fire only when the comment's post id matches. Account-specific only.
+  platform_post_id text,
   name text NOT NULL,
   is_active boolean NOT NULL DEFAULT true,
   keywords text[] NOT NULL DEFAULT '{}',
   fuzzy_threshold integer NOT NULL DEFAULT 2,
   comment_replies text[] NOT NULL DEFAULT '{}',
   dm_message text NOT NULL DEFAULT '',
-  dm_link text,
   match_count integer NOT NULL DEFAULT 0,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -136,6 +138,13 @@ CREATE INDEX IF NOT EXISTS idx_comment_automations_account
   ON comment_automations (platform_account_id) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_comment_automations_scope
   ON comment_automations (scope) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_comment_automations_post
+  ON comment_automations (platform_account_id, platform_post_id) WHERE is_active = true;
+
+-- Idempotent migrations for pre-existing DBs (CREATE TABLE above won't alter):
+-- add per-post targeting, drop the removed dm_link column.
+ALTER TABLE comment_automations ADD COLUMN IF NOT EXISTS platform_post_id text;
+ALTER TABLE comment_automations DROP COLUMN IF EXISTS dm_link;
 
 DROP TRIGGER IF EXISTS set_updated_at ON comment_automations;
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON comment_automations

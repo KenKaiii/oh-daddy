@@ -50,6 +50,23 @@ export interface SendPrivateReplyParams {
 	accountId: string;
 }
 
+/**
+ * A single published post/media item on a connected account, trimmed to what a
+ * post-targeting picker needs. Most-recent-first; one page only (no paging).
+ */
+export interface PlatformPost {
+	/** Platform-side post/media id (matches NormalizedMessage.platformPostId). */
+	id: string;
+	/** Caption / message text, may be empty. */
+	caption: string;
+	/** A thumbnail/preview image url when available. */
+	thumbnailUrl: string | null;
+	/** Public permalink to the post. */
+	permalink: string | null;
+	/** ISO timestamp the post was published. */
+	timestamp: string | null;
+}
+
 /** The trimmed adapter interface every Meta platform implements. */
 export interface PlatformAdapter {
 	platform: PlatformType;
@@ -59,4 +76,10 @@ export interface PlatformAdapter {
 
 	postCommentReply(params: PostCommentReplyParams): Promise<string>;
 	sendPrivateReply(params: SendPrivateReplyParams): Promise<string>;
+
+	/**
+	 * List recent posts on the account. `accountId` is the platform-side id
+	 * (Page id / IG user id). Returns the first page, most recent first.
+	 */
+	listPosts(accessToken: string, accountId: string): Promise<PlatformPost[]>;
 }

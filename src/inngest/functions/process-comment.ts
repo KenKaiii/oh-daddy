@@ -198,6 +198,7 @@ export const processComment = inngest.createFunction(
 				conversationId,
 				content: normalized.content,
 				platformMessageId: normalized.platformMessageId ?? null,
+				platformPostId: normalized.platformPostId ?? null,
 				ownAccountId: ownAccount?.account_id ?? null,
 				// Encrypted-at-rest blob (or sentinel) — decrypted at point of use in
 				// step 2, never persisted to Inngest state as plaintext.
@@ -227,6 +228,7 @@ export const processComment = inngest.createFunction(
 					contactId: ingested.contactId,
 					commentText: ingested.content,
 					platformMessageId: ingested.platformMessageId,
+					platformPostId: ingested.platformPostId,
 				});
 				return result.matched;
 			},
