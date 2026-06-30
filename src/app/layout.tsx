@@ -3,6 +3,7 @@ import { Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import { cookies } from "next/headers";
 
+import { ClickSound } from "@/components/click-sound";
 import SideRays from "@/components/SideRays";
 import { SiteMenu } from "@/components/site-menu";
 import { ConfirmProvider } from "@/components/ui/confirm";
@@ -93,6 +94,7 @@ export default async function RootLayout({
 			    Grammarly) inject attributes like cz-shortcut-listen onto <body>
 			    before React hydrates, which is harmless but trips the warning. */}
 			<body className="min-h-full" suppressHydrationWarning>
+				<ClickSound />
 				<div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
 					<SideRays
 						speed={2.5}
