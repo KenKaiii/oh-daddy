@@ -148,7 +148,6 @@ export default function SettingsPage() {
 
 	const webhookUrl = appUrl ? `${appUrl}/api/webhooks/meta` : "";
 	const redirectUri = appUrl ? `${appUrl}/oauth/callback` : "";
-	const verifyToken = statusFor("meta_webhook_verify_token");
 	// localhost needs a public tunnel; a deployed domain is already reachable.
 	const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(appUrl);
 	const callbackInfo = isLocal
@@ -167,111 +166,6 @@ export default function SettingsPage() {
 			</div>
 
 			<div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-				<Card className="glass-hover">
-					<CardHeader>
-						<CardTitle>Meta credentials</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						{FIELDS.map((f) => {
-							const s = statusFor(f.provider);
-							return (
-								<div key={f.provider} className="space-y-1.5">
-									<div className="flex items-center justify-between gap-2">
-										<span className="flex items-center gap-1.5">
-											<Label htmlFor={f.provider}>{f.label}</Label>
-											<InfoTip text={f.info} />
-											{s?.is_set ? (
-												<Badge variant="positive">Set</Badge>
-											) : (
-												<Badge variant="muted">Not set</Badge>
-											)}
-										</span>
-										{f.provider === "meta_webhook_verify_token" && (
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={generateVerifyToken}
-											>
-												Generate
-											</Button>
-										)}
-									</div>
-									<Input
-										id={f.provider}
-										type={f.provider.includes("secret") ? "password" : "text"}
-										value={values[f.provider] ?? ""}
-										onChange={(e) =>
-											setValues({ ...values, [f.provider]: e.target.value })
-										}
-										placeholder={
-											s?.is_set ? "•••••• (leave blank to keep)" : f.placeholder
-										}
-									/>
-								</div>
-							);
-						})}
-
-						<Button onClick={save} disabled={saving}>
-							{saving ? "Saving…" : "Save credentials"}
-						</Button>
-					</CardContent>
-				</Card>
-
-				<Card className="glass-hover">
-					<CardHeader>
-						<CardTitle>Meta App configuration</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-4 text-sm">
-						<div className="space-y-1.5">
-							<span className="flex items-center gap-1.5">
-								<Label>OAuth Redirect URI</Label>
-								<InfoTip text={redirectInfo} />
-							</span>
-							<div className="group relative">
-								<Input
-									readOnly
-									value={redirectUri}
-									placeholder="…"
-									className="pr-20 font-mono text-xs"
-								/>
-								<CopyButton
-									value={redirectUri}
-									className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100"
-								/>
-							</div>
-						</div>
-						<div className="space-y-1.5">
-							<span className="flex items-center gap-1.5">
-								<Label>Webhook Callback URL</Label>
-								<InfoTip text={callbackInfo} />
-							</span>
-							<div className="group relative">
-								<Input
-									readOnly
-									value={webhookUrl}
-									placeholder="…"
-									className="pr-20 font-mono text-xs"
-								/>
-								<CopyButton
-									value={webhookUrl}
-									className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100"
-								/>
-							</div>
-						</div>
-						<div className="space-y-1.5">
-							<span className="flex items-center gap-1.5">
-								<Label>Verify Token</Label>
-								<InfoTip text="Meta sends this token during the webhook handshake. It must match the Webhook Verify Token you saved on the left." />
-							</span>
-							<code className="block rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs">
-								{verifyToken?.is_set
-									? "Saved — matched on each webhook handshake"
-									: "Set the Webhook Verify Token above first"}
-							</code>
-						</div>
-					</CardContent>
-				</Card>
-
 				<Card className="glass-hover">
 					<CardHeader>
 						<CardTitle>Send delays</CardTitle>
@@ -308,6 +202,104 @@ export default function SettingsPage() {
 						</Button>
 					</CardContent>
 				</Card>
+
+				<div className="space-y-6">
+					<Card className="glass-hover">
+						<CardHeader>
+							<CardTitle>Meta credentials</CardTitle>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							{FIELDS.map((f) => {
+								const s = statusFor(f.provider);
+								return (
+									<div key={f.provider} className="space-y-1.5">
+										<div className="flex items-center justify-between gap-2">
+											<span className="flex items-center gap-1.5">
+												<Label htmlFor={f.provider}>{f.label}</Label>
+												<InfoTip text={f.info} />
+												{s?.is_set ? (
+													<Badge variant="positive">Set</Badge>
+												) : (
+													<Badge variant="muted">Not set</Badge>
+												)}
+											</span>
+											{f.provider === "meta_webhook_verify_token" && (
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={generateVerifyToken}
+												>
+													Generate
+												</Button>
+											)}
+										</div>
+										<Input
+											id={f.provider}
+											type={f.provider.includes("secret") ? "password" : "text"}
+											value={values[f.provider] ?? ""}
+											onChange={(e) =>
+												setValues({ ...values, [f.provider]: e.target.value })
+											}
+											placeholder={
+												s?.is_set
+													? "•••••• (leave blank to keep)"
+													: f.placeholder
+											}
+										/>
+									</div>
+								);
+							})}
+
+							<Button onClick={save} disabled={saving}>
+								{saving ? "Saving…" : "Save credentials"}
+							</Button>
+						</CardContent>
+					</Card>
+
+					<Card className="glass-hover">
+						<CardHeader>
+							<CardTitle>Meta App configuration</CardTitle>
+						</CardHeader>
+						<CardContent className="space-y-4 text-sm">
+							<div className="space-y-1.5">
+								<span className="flex items-center gap-1.5">
+									<Label>OAuth Redirect URI</Label>
+									<InfoTip text={redirectInfo} />
+								</span>
+								<div className="group relative">
+									<Input
+										readOnly
+										value={redirectUri}
+										placeholder="…"
+										className="pr-20 font-mono text-xs"
+									/>
+									<CopyButton
+										value={redirectUri}
+										className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100"
+									/>
+								</div>
+							</div>
+							<div className="space-y-1.5">
+								<span className="flex items-center gap-1.5">
+									<Label>Webhook Callback URL</Label>
+									<InfoTip text={callbackInfo} />
+								</span>
+								<div className="group relative">
+									<Input
+										readOnly
+										value={webhookUrl}
+										placeholder="…"
+										className="pr-20 font-mono text-xs"
+									/>
+									<CopyButton
+										value={webhookUrl}
+										className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100"
+									/>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
 			</div>
 		</div>
 	);
