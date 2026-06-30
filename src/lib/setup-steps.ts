@@ -30,6 +30,9 @@ export const SETUP_STEP_IDS = [
 	"fb-webhooks",
 	// Pre-connect (dev mode)
 	"ig-tester",
+	// Go live (required for comment webhooks to fire)
+	"legal-urls",
+	"publish-app",
 	// Connect
 	"connect",
 ] as const;
@@ -144,6 +147,21 @@ export const SETUP_STEPS: readonly SetupStepMeta[] = [
 			"Add your Instagram account as a tester so the app can connect it.",
 		completion: { kind: "self" },
 	},
+	// ── Go live (required for comment webhooks to fire) ─────────────────
+	{
+		id: "legal-urls",
+		title: "Add your legal URLs",
+		summary:
+			"Paste your privacy, terms, and data-deletion URLs into App Settings → Basic.",
+		completion: { kind: "self" },
+	},
+	{
+		id: "publish-app",
+		title: "Publish your app (go Live)",
+		summary:
+			"Switch the app to Live so Meta delivers comment webhooks in production.",
+		completion: { kind: "self" },
+	},
 	// ── Connect ─────────────────────────────────────────────────────────
 	{
 		id: "connect",
@@ -175,9 +193,14 @@ export const EXTERNAL_LINKS = {
 
 const APP_BASE = "https://developers.facebook.com/apps";
 
-/** App Settings → Basic (App ID, App Secret, App Domains). */
+/** App Settings → Basic (App ID, App Secret, App Domains, legal URLs). */
 export function appBasicSettingsUrl(appId: string): string {
 	return `${APP_BASE}/${appId}/settings/basic/`;
+}
+
+/** App dashboard home — where the Development/Live publish toggle lives. */
+export function appDashboardUrl(appId: string): string {
+	return `${APP_BASE}/${appId}/`;
 }
 
 /** Webhooks product page (Facebook / Page object). */

@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/api-client";
 import {
 	appBasicSettingsUrl,
+	appDashboardUrl,
 	appInstagramSetupUrl,
 	appLoginConfigurationsUrl,
 	appLoginSettingsUrl,
@@ -337,6 +338,11 @@ export default function SetupPage() {
 
 	const redirectUri = appUrl ? `${appUrl}/oauth/callback` : "";
 	const webhookUrl = appUrl ? `${appUrl}/api/webhooks/meta` : "";
+	// Public legal pages served by this deployment — built from its own origin so
+	// each operator gets URLs on their own domain to paste into Meta's Basic tab.
+	const privacyUrl = appUrl ? `${appUrl}/legal/privacy` : "";
+	const termsUrl = appUrl ? `${appUrl}/legal/terms` : "";
+	const dataDeletionUrl = appUrl ? `${appUrl}/legal/data-deletion` : "";
 	let appHost = "";
 	try {
 		appHost = appUrl ? new URL(appUrl).host : "";
@@ -777,6 +783,90 @@ export default function SetupPage() {
 								account.
 							</li>
 						</ol>
+					</>
+				);
+			case "legal-urls":
+				return (
+					<>
+						<p className="text-sm text-muted-foreground">
+							Meta requires these before you can publish. Open{" "}
+							{appId ? (
+								<ExtLink href={appBasicSettingsUrl(appId)}>
+									App Settings → Basic
+								</ExtLink>
+							) : (
+								<>App Settings → Basic</>
+							)}{" "}
+							and paste each URL below into the matching field, then{" "}
+							<strong>Save changes</strong>. These pages are served by your own
+							deployment.
+						</p>
+						<CopyField
+							label="Privacy Policy URL"
+							value={privacyUrl}
+							hint={
+								isLocal
+									? "You're on localhost — Meta needs a public URL. Deploy first, then copy this from the live site."
+									: "Paste into the Privacy Policy URL field."
+							}
+						/>
+						<CopyField
+							label="Terms of Service URL"
+							value={termsUrl}
+							hint="Paste into the Terms of Service URL field."
+						/>
+						<CopyField
+							label="User Data Deletion URL"
+							value={dataDeletionUrl}
+							hint={
+								<>
+									Under <strong>User data deletion</strong>, choose{" "}
+									<strong>Data deletion instructions URL</strong> and paste
+									this.
+								</>
+							}
+						/>
+					</>
+				);
+			case "publish-app":
+				return (
+					<>
+						<p className="text-sm text-muted-foreground">
+							Your app starts in <strong>Development</strong> mode, where Meta
+							won't deliver real <strong>comment</strong> webhooks. Switching to{" "}
+							<strong>Live</strong> turns them on in production.
+						</p>
+						<ol className="space-y-3 text-sm text-muted-foreground">
+							<li>
+								<strong className="text-foreground">
+									1. Open your app dashboard
+								</strong>
+								<br />
+								Go to{" "}
+								{appId ? (
+									<ExtLink href={appDashboardUrl(appId)}>
+										your app dashboard
+									</ExtLink>
+								) : (
+									<>your app dashboard</>
+								)}
+								.
+							</li>
+							<li>
+								<strong className="text-foreground">
+									2. Click Publish → Publish App
+								</strong>
+								<br />
+								Use the <strong>Publish</strong> control (the Development/Live
+								toggle at the top of the dashboard) and confirm{" "}
+								<strong>Publish App</strong>. The mode should now read{" "}
+								<strong>Live</strong>.
+							</li>
+						</ol>
+						<p className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+							If Meta asks you to complete the legal URLs first, finish the
+							previous step, then publish.
+						</p>
 					</>
 				);
 			case "connect":
