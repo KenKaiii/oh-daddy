@@ -3,11 +3,10 @@
   <!-- Black squircle (iOS-style rounded corners), near-black canvas #0a0a0f -->
   <rect x="16" y="16" width="480" height="480" rx="118" fill="#0a0a0f"/>
   <rect x="16.5" y="16.5" width="479" height="479" rx="117.5" fill="none" stroke="#262631" stroke-width="1"/>
-  <!-- ASCII-art "O" in electric-violet accent #6d6dfb -->
-  <text x="256" y="256"
-        font-family="'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace"
-        font-size="64" font-weight="700"
-        fill="#6d6dfb"
-        text-anchor="middle" dominant-baseline="central"
-        xml:space="preserve"><tspan x="256" dy="-2.625em">.oOOOo.</tspan><tspan x="256" dy="1.05em">o     o</tspan><tspan x="256" dy="1.05em">O     O</tspan><tspan x="256" dy="1.05em">O     O</tspan><tspan x="256" dy="1.05em">o     o</tspan><tspan x="256" dy="1.05em">'oOOOo'</tspan></text>
+  <!-- "Oh" set in Redaction 50 Bold (title font), outlined to paths, violet accent #6d6dfb.
+       Glyphs are in font units (y-up); the group flips and scales them into the squircle. -->
+  <g transform="translate(106 330.5) scale(0.1987 -0.1987)" fill="#6d6dfb">
+    <path d="M550 50H650V100H700V200H750V550H700V600H650V650H550V700H250V650H150V600H100V500H50V150H100V100H150V50H250V0H550ZM300 50V100H250V250H200V500H250V600H300V650H500V600H550V450H600V200H550V100H500V50Z"/>
+    <path transform="translate(860 0)" d="M300 50H250V400H400V50H350V0H650V50H550V450H500V500H300V450H250V750H200V700H50V650H100V50H50V0H300ZM250 400H200V450H250Z"/>
+  </g>
 </svg>
