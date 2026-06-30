@@ -4,9 +4,10 @@
 # runs on EVERY deploy: GitHub auto-deploy AND `railway up`).
 #
 # Backgrounds a one-shot Inngest re-sync (scripts/post-deploy-sync.mjs): it
-# waits for THIS new container to start serving, then PUTs /api/inngest so the
-# self-hosted Inngest engine picks up function changes (added/removed/retuned
-# functions). Without this, self-hosted Inngest keeps the previous deploy's
+# waits for THIS new container to start serving locally, then PUTs the public
+# NEXT_PUBLIC_APP_URL/api/inngest so the self-hosted Inngest engine picks up
+# function changes (added/removed/retuned functions) with a publicly reachable
+# SDK callback URL. Without this, self-hosted Inngest keeps the previous deploy's
 # registration and new functions silently never run. The sync never blocks or
 # fails startup.
 #

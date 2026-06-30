@@ -146,10 +146,12 @@ re-registers — so a new function silently never runs.
 This repo fixes that automatically: `railway.json` sets the start command to
 `scripts/start.sh`, which (on **every** deploy — GitHub auto-deploy or
 `railway up`) backgrounds `scripts/post-deploy-sync.mjs`. That script waits for
-the new container to start serving, then sends `PUT /api/inngest` so the SDK
-re-registers the current function list with the engine at `INNGEST_BASE_URL`.
-It's best-effort (never fails the deploy) and is skipped when `INNGEST_BASE_URL`
-is unset (plain local `npm run start`).
+the new container to start serving locally, then sends `PUT /api/inngest` to
+`NEXT_PUBLIC_APP_URL` so the SDK registers a **publicly reachable** callback URL
+with the engine at `INNGEST_BASE_URL`. Registering via localhost breaks
+self-hosted Inngest because the separate engine will call itself instead of the
+app. It's best-effort (never fails the deploy) and is skipped when
+`INNGEST_BASE_URL` is unset (plain local `npm run start`).
 
 If you ever need to re-sync by hand (e.g. you changed functions out-of-band):
 

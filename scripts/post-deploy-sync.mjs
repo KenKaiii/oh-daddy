@@ -10,8 +10,14 @@
  * This runs from the start command (see scripts/start.sh, wired via
  * railway.json -> deploy.startCommand) on EVERY deploy, whether triggered by a
  * GitHub push or `railway up`. It waits for THIS freshly-started container to
- * begin serving, then sends `PUT /api/inngest`, which makes the Inngest SDK
- * register the current function list with the engine at INNGEST_BASE_URL.
+ * begin serving, then sends `PUT /api/inngest` to the app's PUBLIC URL, which
+ * makes the Inngest SDK register the current function list with the engine at
+ * INNGEST_BASE_URL.
+ *
+ * Important: the registration PUT must use the public app URL, not localhost.
+ * The self-hosted Inngest engine stores the request URL as the SDK callback URL;
+ * registering via localhost makes the separate engine call itself and every run
+ * fails with "Unable to reach SDK URL".
  *
  * Best-effort by design: it never throws and always exits 0, so a transient
  * sync failure can never fail the deploy (the app still serves; a later deploy
@@ -27,18 +33,27 @@ if (!baseUrl) {
 	process.exit(0);
 }
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+if (!appUrl) {
+	console.error(
+		"[inngest-sync] NEXT_PUBLIC_APP_URL is unset; cannot register a public SDK URL",
+	);
+	process.exit(0);
+}
+
 const port = process.env.PORT || "3000";
-const endpoint = `http://127.0.0.1:${port}/api/inngest`;
+const healthEndpoint = `http://127.0.0.1:${port}/api/inngest`;
+const registrationEndpoint = `${appUrl.replace(/\/$/, "")}/api/inngest`;
 const DEADLINE = Date.now() + 180_000; // up to 3 min for the app to come up
 
 /**
  * Any HTTP response means Next is serving. `GET /api/inngest` returns 401 in
  * self-hosted mode (no signing key on the query) — that still proves the app is
- * reachable, which is all we need before issuing the PUT.
+ * reachable, which is all we need before issuing the public registration PUT.
  */
 async function reachable() {
 	try {
-		await fetch(endpoint, { method: "GET" });
+		await fetch(healthEndpoint, { method: "GET" });
 		return true;
 	} catch {
 		return false;
@@ -48,9 +63,11 @@ async function reachable() {
 while (Date.now() < DEADLINE) {
 	if (await reachable()) {
 		try {
-			const res = await fetch(endpoint, { method: "PUT" });
+			const res = await fetch(registrationEndpoint, { method: "PUT" });
 			const body = (await res.text().catch(() => "")).slice(0, 200);
-			console.log(`[inngest-sync] PUT ${endpoint} -> ${res.status} ${body}`);
+			console.log(
+				`[inngest-sync] PUT ${registrationEndpoint} -> ${res.status} ${body}`,
+			);
 		} catch (err) {
 			console.error(
 				`[inngest-sync] PUT failed: ${err instanceof Error ? err.message : String(err)}`,
