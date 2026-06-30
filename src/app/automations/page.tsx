@@ -20,6 +20,7 @@ interface AccountLite {
 	id: string;
 	platform: string;
 	account_name: string;
+	is_connected: boolean;
 }
 
 interface Automation {
@@ -83,7 +84,9 @@ export default function AutomationsPage() {
 			if (!aRes.ok)
 				throw new Error(aJson.error ?? "Failed to load automations");
 			setAutomations(aJson.data ?? []);
-			setAccounts(accJson.data ?? []);
+			setAccounts(
+				(accJson.data ?? []).filter((a: AccountLite) => a.is_connected),
+			);
 			setError(null);
 		} catch (e) {
 			setError(formatError(e));
