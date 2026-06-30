@@ -9,6 +9,7 @@ import {
 	useState,
 } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
@@ -742,15 +743,9 @@ export default function SetupPage() {
 						<h2 className="font-display text-xl font-semibold tracking-tight">
 							{step.title}
 						</h2>
-						{stepComplete && (
-							<span className="text-[11px] font-medium uppercase tracking-wide text-success">
-								Done
-							</span>
-						)}
+						{stepComplete && <Badge variant="positive">Done</Badge>}
 						{!stepComplete && step.optional && (
-							<span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-								Optional
-							</span>
+							<Badge variant="muted">Optional</Badge>
 						)}
 					</div>
 

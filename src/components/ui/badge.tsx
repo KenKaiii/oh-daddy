@@ -10,11 +10,11 @@ const variants: Record<Variant, string> = {
 	// Affirmative / active — violet-tint (single accent, lower prominence
 	// than the solid-violet primary CTA).
 	success: "bg-accent text-accent-foreground",
-	// Configured/“Set” — soft green that reads affirmative against the dark
-	// violet theme without competing with the primary CTA.
-	positive: "bg-emerald-500/15 text-emerald-400",
+	// Affirmative status (“Set” / “Done”) — solid bright green with white text.
+	positive: "bg-emerald-500 text-white",
 	muted: "bg-muted text-muted-foreground",
-	outline: "border border-border text-muted-foreground",
+	// Neutral metadata chip — borderless subtle fill (no badge carries a border).
+	outline: "bg-foreground/5 text-muted-foreground",
 };
 
 export function Badge({
