@@ -28,6 +28,8 @@ export const SETUP_STEP_IDS = [
 	"fb-redirect-uri",
 	"fb-config-id",
 	"fb-webhooks",
+	// Pre-connect (dev mode)
+	"ig-tester",
 	// Connect
 	"connect",
 ] as const;
@@ -133,6 +135,14 @@ export const SETUP_STEPS: readonly SetupStepMeta[] = [
 		summary: "Optional — subscribe the Page object to the feed field.",
 		completion: { kind: "self" },
 		optional: true,
+	},
+	// ── Pre-connect (dev mode) ──────────────────────────────────────────
+	{
+		id: "ig-tester",
+		title: "Add Instagram tester",
+		summary:
+			"Add your Instagram account as a tester so the app can connect it.",
+		completion: { kind: "self" },
 	},
 	// ── Connect ─────────────────────────────────────────────────────────
 	{

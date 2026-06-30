@@ -734,6 +734,51 @@ export default function SetupPage() {
 						/>
 					</>
 				);
+			case "ig-tester":
+				return (
+					<>
+						<p className="text-sm text-muted-foreground">
+							While your app is in Development mode, Meta only lets accounts
+							with an explicit role connect through the login flow. Add your
+							Instagram account as a tester so you can connect it here. Every
+							Instagram account you connect needs to be added as a tester.
+						</p>
+						<ol className="space-y-3 text-sm text-muted-foreground">
+							<li>
+								<strong className="text-foreground">
+									1. Add your Instagram account as a tester
+								</strong>
+								<br />
+								In the Meta app dashboard, go to <strong>Roles</strong> → click{" "}
+								<strong>Add People</strong> → choose{" "}
+								<strong>Instagram Tester</strong> → enter your Instagram
+								username.
+							</li>
+							<li>
+								<strong className="text-foreground">
+									2. Accept the invitation on Instagram
+								</strong>
+								<br />
+								Go to{" "}
+								<ExtLink href="https://www.instagram.com/">
+									instagram.com
+								</ExtLink>{" "}
+								and log in as that account. Open the menu (≡) →{" "}
+								<strong>Settings</strong> → <strong>Website Permissions</strong>{" "}
+								→ <strong>Tester Invites</strong> → click{" "}
+								<strong>Accept</strong>.
+							</li>
+							<li>
+								<strong className="text-foreground">
+									3. Come back and connect
+								</strong>
+								<br />
+								Once accepted, return here and click Next to connect your
+								account.
+							</li>
+						</ol>
+					</>
+				);
 			case "connect":
 				return (
 					<>
