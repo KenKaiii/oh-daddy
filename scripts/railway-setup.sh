@@ -230,6 +230,11 @@ fi
 # ── Register the app with the self-hosted Inngest server ─────────────────────
 # A PUT to the app's /api/inngest makes it sync its functions to the server at
 # INNGEST_BASE_URL. Best-effort: needs the deploy to be live, so we retry.
+#
+# NOTE: every deploy ALSO self-syncs on boot via the start command
+# (railway.json -> scripts/start.sh -> scripts/post-deploy-sync.mjs), so adding
+# or changing an Inngest function no longer requires a manual PUT. This step
+# just gives the very first provision an immediate nudge.
 if [ -n "$APP_URL" ]; then
   log "Registering functions with the self-hosted Inngest server…"
   for _ in $(seq 1 12); do

@@ -136,6 +136,36 @@ URL (`psql "$DATABASE_PUBLIC_URL" -f db/schema.sql`), then run the encrypt
 migration above only if the DB already holds
 plaintext rows from an earlier deploy.
 
+#### Inngest function re-sync on every deploy
+
+Self-hosted Inngest (unlike Inngest Cloud) does **not** auto-discover function
+changes on deploy. After a deploy that adds, removes, or retunes an Inngest
+function, the engine keeps the **previous** registration until the app
+re-registers — so a new function silently never runs.
+
+This repo fixes that automatically: `railway.json` sets the start command to
+`scripts/start.sh`, which (on **every** deploy — GitHub auto-deploy or
+`railway up`) backgrounds `scripts/post-deploy-sync.mjs`. That script waits for
+the new container to start serving, then sends `PUT /api/inngest` so the SDK
+re-registers the current function list with the engine at `INNGEST_BASE_URL`.
+It's best-effort (never fails the deploy) and is skipped when `INNGEST_BASE_URL`
+is unset (plain local `npm run start`).
+
+If you ever need to re-sync by hand (e.g. you changed functions out-of-band):
+
+```bash
+curl -X PUT https://<your-app-domain>/api/inngest
+# 200 {"message":"Successfully registered","modified":true}
+```
+
+Confirm both functions are registered by querying the self-hosted engine:
+
+```bash
+curl -s https://<inngest-engine-domain>/v0/gql -X POST \
+  -H 'content-type: application/json' \
+  -d '{"query":"{ functions { name slug } }"}'
+```
+
 This starts **Next.js** (`localhost:3000`) and the **Inngest dev server**
 together (via `concurrently`). The Inngest dev UI is at `localhost:8288`.
 
