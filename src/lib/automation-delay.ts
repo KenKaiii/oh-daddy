@@ -2,8 +2,10 @@
  * Smart send delays for comment automations.
  *
  * Goal: never blast Meta with a burst of API calls, and make automated sends
- * land on human-looking timing rather than a fixed cadence. Two native Inngest
- * primitives combine in `src/inngest/functions/process-comment.ts`:
+ * land on human-looking timing rather than a fixed cadence. Ingestion stays
+ * real-time in `process-comment`; only the SEND side carries delay. Two native
+ * Inngest primitives combine in `src/inngest/functions/automation-send.ts` (the
+ * fan-out delivery worker process-comment emits to on a match):
  *
  *  1. A per-account `throttle` (keyed on the platform account) caps how often a
  *     run may START per account. Its period is fixed at DELAY_MIN_SECONDS, so

@@ -1,15 +1,7 @@
 import { z } from "zod";
 
 import { inngest } from "@/inngest/client";
-import {
-	DELAY_THROTTLE_PERIOD_SECONDS,
-	getDelayMaxSeconds,
-	pickJitterSeconds,
-} from "@/lib/automation-delay";
-import {
-	commentMatchesAutomation,
-	runKeywordAutomation,
-} from "@/lib/automations/run-automation";
+import { commentMatchesAutomation } from "@/lib/automations/run-automation";
 import { decryptToken } from "@/lib/crypto";
 import { getDb } from "@/lib/db";
 import { getAdapter } from "@/lib/platforms";
@@ -26,20 +18,12 @@ const payloadSchema = z.object({
 export const processComment = inngest.createFunction(
 	{
 		id: "process-comment",
-		// Per-account rate cap (Meta API safety): at most one run START per
-		// account per throttle period, evenly spaced. Throttle ENQUEUES the
-		// backlog rather than dropping it, so every matching comment is still
-		// delivered — just spread out. Different accounts have independent
-		// throttle buckets (keyed on the account) and run in parallel. The random
-		// jitter in the handler scatters the actual send within the operator's
-		// window for human-looking timing; see src/lib/automation-delay.ts.
-		throttle: {
-			key: "event.data.platformAccountId",
-			limit: 1,
-			period: `${DELAY_THROTTLE_PERIOD_SECONDS}s`,
-		},
-		// Global ceiling on concurrently executing steps across all accounts.
-		concurrency: { limit: 5 },
+		// NO throttle here: ingestion (contact/conversation/message upserts +
+		// dashboard stats) must stay real-time. The per-account rate cap lives on
+		// the downstream `automation-send` function, so only actual Meta sends are
+		// paced — never ingestion. A modest concurrency cap just bounds parallel
+		// DB work; it does not rate-limit per account.
+		concurrency: { limit: 10 },
 		retries: 3,
 		triggers: [{ event: "comment/process" }],
 	},
@@ -240,10 +224,6 @@ export const processComment = inngest.createFunction(
 				content: normalized.content,
 				platformMessageId: normalized.platformMessageId ?? null,
 				platformPostId: normalized.platformPostId ?? null,
-				ownAccountId: ownAccount?.account_id ?? null,
-				// Encrypted-at-rest blob (or sentinel) — decrypted at point of use in
-				// step 2, never persisted to Inngest state as plaintext.
-				ownAccessTokenEncrypted: ownAccount?.access_token ?? null,
 			};
 		});
 
@@ -252,15 +232,15 @@ export const processComment = inngest.createFunction(
 		}
 
 		// ──────────────────────────────────────────────────────────────
-		// STEP 2: Match check, then random jitter sleep.
+		// STEP 2: Match check + fan-out (no throttle, no delay here).
 		//
-		// Read-only check first so NON-matching comments add no delay. The
-		// per-account throttle (function config) already spaces run STARTS for
-		// Meta rate safety; here we add a random jitter via step.sleep so the
-		// actual send lands at a human-looking moment inside the operator's
-		// window rather than exactly on the throttle grid. Jitter is picked once
-		// in a step (memoized), so the same value replays across retries and the
-		// conditional sleep stays deterministic.
+		// Read-only check decides whether this comment should trigger a send.
+		// Ingestion above already happened in real time; only on a MATCH do we
+		// hand off to the throttled `automation-send` function via a durable
+		// event. step.sendEvent is memoized in the run, so a replay/retry of
+		// process-comment won't emit duplicate sends — and even if it did, the
+		// claim-before-send in the delivery worker dedups by (automation,
+		// message).
 		// ──────────────────────────────────────────────────────────────
 		const matched = await step.run("match-check", () =>
 			commentMatchesAutomation({
@@ -271,47 +251,23 @@ export const processComment = inngest.createFunction(
 		);
 
 		if (matched) {
-			const jitterSeconds = await step.run("pick-jitter", async () =>
-				pickJitterSeconds(await getDelayMaxSeconds()),
-			);
-			if (jitterSeconds > 0) {
-				await step.sleep("send-jitter", `${jitterSeconds}s`);
-			}
-		}
-
-		// ──────────────────────────────────────────────────────────────
-		// STEP 3: Run keyword automations (claim-before-send retry safety).
-		//
-		// runKeywordAutomation claims the automation_matches row BEFORE any Meta
-		// call, so a step retry after a partial failure never double-posts. The
-		// throttle + jitter above only shape WHEN this runs, not whether it's
-		// idempotent.
-		// ──────────────────────────────────────────────────────────────
-		const automationHandled = await step.run(
-			"check-keyword-automation",
-			async () => {
-				const result = await runKeywordAutomation({
+			await step.sendEvent("emit-automation-send", {
+				name: "automation/send",
+				data: {
 					platform: parsed.platform,
 					platformAccountId: parsed.platformAccountId,
-					ownAccessToken: decryptToken(
-						ingested.ownAccessTokenEncrypted,
-					) as string,
-					ownAccountId: ingested.ownAccountId as string,
 					messageId: ingested.messageId,
 					conversationId: ingested.conversationId,
 					contactId: ingested.contactId,
 					commentText: ingested.content,
 					platformMessageId: ingested.platformMessageId,
 					platformPostId: ingested.platformPostId,
-				});
-				return result.matched;
-			},
-		);
+				},
+			});
+		}
 
 		return {
-			status: automationHandled
-				? ("automation-handled" as const)
-				: ("stored" as const),
+			status: matched ? ("send-enqueued" as const) : ("stored" as const),
 			messageId: ingested.messageId,
 			conversationId: ingested.conversationId,
 		};
