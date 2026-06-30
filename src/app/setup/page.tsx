@@ -309,8 +309,17 @@ export default function SetupPage() {
 		// Self-attested steps have nothing to verify — advancing IS the
 		// confirmation, so record it before moving on.
 		if (step.completion.kind === "self") markSelfDone(step.id);
-		if (index >= TOTAL - 1) router.push("/automations");
-		else setCurrent(index + 1);
+		if (index >= TOTAL - 1) {
+			// Celebrate a completed setup. Client-side navigation keeps the SPA
+			// (and this Audio element) alive, so the sound plays through the route
+			// change. play() can reject if autoplay is blocked — ignore it.
+			try {
+				const sound = new Audio("/ohyeah.mp3");
+				sound.volume = 0.6;
+				void sound.play().catch(() => {});
+			} catch {}
+			router.push("/automations");
+		} else setCurrent(index + 1);
 	}
 
 	// --- derived display values -----------------------------------------
