@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useConfirm } from "@/components/ui/confirm";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -96,10 +97,12 @@ export default function SetupPage() {
 		null,
 	);
 	const [loading, setLoading] = useState(true);
-	// The freshly generated webhook verify token, surfaced so the operator can
-	// copy it into Meta. Cleared once we navigate away — GET /api/settings never
-	// returns the stored value, so this is the only moment it's visible.
+	const confirm = useConfirm();
+	// The verify token generated in THIS session, kept so it can be re-copied on a
+	// later step (e.g. the Facebook webhooks step reuses the same token). Lost on
+	// reload — GET /api/settings never returns the stored secret.
 	const [generatedVerifyToken, setGeneratedVerifyToken] = useState("");
+	const [tokenModalOpen, setTokenModalOpen] = useState(false);
 	// Per-item acknowledgement for the prerequisites step (gates its Next button).
 	const [prereqChecked, setPrereqChecked] = useState<Record<string, boolean>>(
 		{},
@@ -217,10 +220,24 @@ export default function SetupPage() {
 	}
 
 	async function generateAndSaveToken() {
+		// One token is shared by both the Instagram and Page webhooks. If one already
+		// exists, regenerating silently breaks any webhook already registered with
+		// the old value — so confirm before overwriting.
+		if (isSet("meta_webhook_verify_token")) {
+			const ok = await confirm({
+				title: "Replace the verify token?",
+				description:
+					"A token is already saved and is shared by the Instagram and Facebook webhooks. Generating a new one breaks any webhook you've already registered until you update it in Meta with the new value. To set up Facebook, reuse the existing token instead.",
+				confirmText: "Regenerate anyway",
+				destructive: true,
+			});
+			if (!ok) return;
+		}
 		const token = randomVerifyToken();
 		await saveSetting("meta_webhook_verify_token", token);
 		// Surface the value so the operator can paste the SAME token into Meta.
 		setGeneratedVerifyToken(token);
+		setTokenModalOpen(true);
 	}
 
 	// Convenience: Meta's Instagram business-login settings show a ready-made
@@ -307,22 +324,36 @@ export default function SetupPage() {
 	}
 	const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(appUrl);
 
+	const tokenIsSet = isSet("meta_webhook_verify_token");
 	const verifyTokenField = (
-		<>
-			<PasteField
-				label="Webhook Verify Token"
-				provider="meta_webhook_verify_token"
-				placeholder="a-random-string-you-choose"
-				isSet={isSet("meta_webhook_verify_token")}
-				onSave={(v) => saveSetting("meta_webhook_verify_token", v)}
-				rightSlot={
+		<PasteField
+			label="Webhook Verify Token"
+			provider="meta_webhook_verify_token"
+			placeholder="a-random-string-you-choose"
+			isSet={tokenIsSet}
+			onSave={(v) => saveSetting("meta_webhook_verify_token", v)}
+			rightSlot={
+				<span className="flex items-center gap-2">
+					{tokenIsSet && generatedVerifyToken && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setTokenModalOpen(true)}
+						>
+							Copy token
+						</Button>
+					)}
 					<Button variant="outline" size="sm" onClick={generateAndSaveToken}>
-						Generate
+						{tokenIsSet ? "Regenerate" : "Generate"}
 					</Button>
-				}
-				hint="Use the exact same value in the Meta webhook setup so the handshake matches. The same token works for both the Instagram and Page objects."
-			/>
-		</>
+				</span>
+			}
+			hint={
+				tokenIsSet
+					? "One token is shared by the Instagram and Page webhooks — reuse the same value for both. Only regenerate if you'll update every registered webhook with the new value."
+					: "Use the exact same value in the Meta webhook setup so the handshake matches. The same token works for both the Instagram and Page objects."
+			}
+		/>
 	);
 
 	function renderBody(id: SetupStepId) {
@@ -831,16 +862,14 @@ export default function SetupPage() {
 				</Card>
 			)}
 
-			{/* After Generate: the token is already saved to the system. Surface it
-			    once in a modal so the operator can copy the SAME value into Meta — it
-			    is never shown again (GET /api/settings doesn't return secrets). */}
-			<Dialog
-				open={!!generatedVerifyToken}
-				onClose={() => setGeneratedVerifyToken("")}
-			>
+			{/* The token is already saved to the system. This modal surfaces it for
+			    copying into Meta — the same value for both the Instagram and Page
+			    webhooks. Re-openable via “Copy token” during the session, but not after
+			    a reload (GET /api/settings doesn't return secrets). */}
+			<Dialog open={tokenModalOpen} onClose={() => setTokenModalOpen(false)}>
 				<DialogHeader
-					title="Webhook verify token generated"
-					description="Saved to this app already. Copy it now and paste the exact same value as the Verify Token in the Meta webhook setup — it won't be shown again."
+					title="Webhook verify token"
+					description="Saved to this app already. Paste this exact value as the Verify Token in BOTH the Instagram and Facebook webhook setups — it's the same token for both. It won't be retrievable after you leave setup."
 				/>
 				<div className="flex items-center gap-2">
 					<Input
@@ -851,7 +880,7 @@ export default function SetupPage() {
 					<CopyButton value={generatedVerifyToken} />
 				</div>
 				<DialogFooter>
-					<Button onClick={() => setGeneratedVerifyToken("")}>Done</Button>
+					<Button onClick={() => setTokenModalOpen(false)}>Done</Button>
 				</DialogFooter>
 			</Dialog>
 		</div>
