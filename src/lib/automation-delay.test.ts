@@ -5,7 +5,7 @@ import {
 	DELAY_MAX_CEILING,
 	DELAY_MAX_DEFAULT,
 	DELAY_MIN_SECONDS,
-	pickDelaySeconds,
+	pickJitterSeconds,
 } from "./automation-delay";
 
 describe("clampDelayMax", () => {
@@ -36,36 +36,39 @@ describe("clampDelayMax", () => {
 	});
 });
 
-describe("pickDelaySeconds", () => {
-	it("always returns an integer within [floor, max]", () => {
+describe("pickJitterSeconds", () => {
+	// Jitter is added on top of the throttle floor, so it ranges [0, max-floor].
+	it("always returns an integer within [0, max - floor]", () => {
 		for (const max of [10, 15, 25, 55]) {
+			const span = max - DELAY_MIN_SECONDS;
 			for (let i = 0; i < 200; i++) {
-				const v = pickDelaySeconds(max);
+				const v = pickJitterSeconds(max);
 				expect(Number.isInteger(v)).toBe(true);
-				expect(v).toBeGreaterThanOrEqual(DELAY_MIN_SECONDS);
-				expect(v).toBeLessThanOrEqual(max);
+				expect(v).toBeGreaterThanOrEqual(0);
+				expect(v).toBeLessThanOrEqual(span);
 			}
 		}
 	});
 
-	it("returns exactly the floor when max equals the floor", () => {
+	it("is always 0 when max equals the floor (no jitter)", () => {
 		for (let i = 0; i < 20; i++) {
-			expect(pickDelaySeconds(DELAY_MIN_SECONDS)).toBe(DELAY_MIN_SECONDS);
+			expect(pickJitterSeconds(DELAY_MIN_SECONDS)).toBe(0);
 		}
 	});
 
 	it("clamps an out-of-range max before picking", () => {
+		const maxSpan = DELAY_MAX_CEILING - DELAY_MIN_SECONDS;
 		for (let i = 0; i < 100; i++) {
-			expect(pickDelaySeconds(9999)).toBeLessThanOrEqual(DELAY_MAX_CEILING);
-			expect(pickDelaySeconds(1)).toBe(DELAY_MIN_SECONDS);
+			expect(pickJitterSeconds(9999)).toBeLessThanOrEqual(maxSpan);
+			expect(pickJitterSeconds(1)).toBe(0);
 		}
 	});
 
-	it("can reach both ends of the window over many draws", () => {
+	it("can reach both ends of the jitter window over many draws", () => {
 		const seen = new Set<number>();
-		for (let i = 0; i < 2000; i++) seen.add(pickDelaySeconds(12));
-		// window is {10, 11, 12}
-		expect(seen.has(10)).toBe(true);
-		expect(seen.has(12)).toBe(true);
+		for (let i = 0; i < 2000; i++) seen.add(pickJitterSeconds(12));
+		// jitter window is {0, 1, 2}
+		expect(seen.has(0)).toBe(true);
+		expect(seen.has(2)).toBe(true);
 	});
 });

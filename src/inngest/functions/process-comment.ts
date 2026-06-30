@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 import { inngest } from "@/inngest/client";
-import { getDelayMaxSeconds, pickDelaySeconds } from "@/lib/automation-delay";
+import {
+	DELAY_THROTTLE_PERIOD_SECONDS,
+	getDelayMaxSeconds,
+	pickJitterSeconds,
+} from "@/lib/automation-delay";
 import {
 	commentMatchesAutomation,
 	runKeywordAutomation,
@@ -22,14 +26,20 @@ const payloadSchema = z.object({
 export const processComment = inngest.createFunction(
 	{
 		id: "process-comment",
-		// Per-account throttle: at most one comment in-flight per connected
-		// account at a time. Combined with the smart delay below, this enforces
-		// "one send per random interval" per account while different accounts run
-		// in parallel. A second cap bounds total concurrency across all accounts.
-		concurrency: [
-			{ limit: 1, key: "event.data.platformAccountId" },
-			{ limit: 5 },
-		],
+		// Per-account rate cap (Meta API safety): at most one run START per
+		// account per throttle period, evenly spaced. Throttle ENQUEUES the
+		// backlog rather than dropping it, so every matching comment is still
+		// delivered — just spread out. Different accounts have independent
+		// throttle buckets (keyed on the account) and run in parallel. The random
+		// jitter in the handler scatters the actual send within the operator's
+		// window for human-looking timing; see src/lib/automation-delay.ts.
+		throttle: {
+			key: "event.data.platformAccountId",
+			limit: 1,
+			period: `${DELAY_THROTTLE_PERIOD_SECONDS}s`,
+		},
+		// Global ceiling on concurrently executing steps across all accounts.
+		concurrency: { limit: 5 },
 		retries: 3,
 		triggers: [{ event: "comment/process" }],
 	},
@@ -242,11 +252,15 @@ export const processComment = inngest.createFunction(
 		}
 
 		// ──────────────────────────────────────────────────────────────
-		// STEP 2: Match check + smart delay window.
+		// STEP 2: Match check, then random jitter sleep.
 		//
-		// Read-only check first so NON-matching comments skip the delay entirely
-		// and release the per-account slot immediately. For a match, pick a random
-		// wait once (memoized so retries reuse the same value).
+		// Read-only check first so NON-matching comments add no delay. The
+		// per-account throttle (function config) already spaces run STARTS for
+		// Meta rate safety; here we add a random jitter via step.sleep so the
+		// actual send lands at a human-looking moment inside the operator's
+		// window rather than exactly on the throttle grid. Jitter is picked once
+		// in a step (memoized), so the same value replays across retries and the
+		// conditional sleep stays deterministic.
 		// ──────────────────────────────────────────────────────────────
 		const matched = await step.run("match-check", () =>
 			commentMatchesAutomation({
@@ -256,32 +270,26 @@ export const processComment = inngest.createFunction(
 			}),
 		);
 
-		const delaySeconds = matched
-			? await step.run("pick-delay", async () =>
-					pickDelaySeconds(await getDelayMaxSeconds()),
-				)
-			: 0;
+		if (matched) {
+			const jitterSeconds = await step.run("pick-jitter", async () =>
+				pickJitterSeconds(await getDelayMaxSeconds()),
+			);
+			if (jitterSeconds > 0) {
+				await step.sleep("send-jitter", `${jitterSeconds}s`);
+			}
+		}
 
 		// ──────────────────────────────────────────────────────────────
-		// STEP 3: Wait, then run keyword automations (claim-before-send).
+		// STEP 3: Run keyword automations (claim-before-send retry safety).
 		//
-		// The delay is a BLOCKING wait INSIDE this step — not step.sleep. A
-		// sleeping run releases its concurrency slot (Inngest docs), so step.sleep
-		// would let every matching comment on an account wake and fire together.
-		// Blocking keeps the per-account slot (concurrency limit 1, keyed on the
-		// account) held for the whole wait + delivery, so matching comments on the
-		// same account drain one per random interval, while other accounts run in
-		// parallel. The claim-before-send inside runKeywordAutomation keeps a
-		// step retry from double-posting.
+		// runKeywordAutomation claims the automation_matches row BEFORE any Meta
+		// call, so a step retry after a partial failure never double-posts. The
+		// throttle + jitter above only shape WHEN this runs, not whether it's
+		// idempotent.
 		// ──────────────────────────────────────────────────────────────
 		const automationHandled = await step.run(
 			"check-keyword-automation",
 			async () => {
-				if (delaySeconds > 0) {
-					await new Promise((resolve) =>
-						setTimeout(resolve, delaySeconds * 1000),
-					);
-				}
 				const result = await runKeywordAutomation({
 					platform: parsed.platform,
 					platformAccountId: parsed.platformAccountId,

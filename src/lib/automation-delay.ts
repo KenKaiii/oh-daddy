@@ -1,19 +1,31 @@
 /**
  * Smart send delays for comment automations.
  *
- * To avoid blasting hundreds of Meta API calls instantly, each matched
- * automation waits a random duration before posting its reply + DM. The wait is
- * a random integer of seconds in [DELAY_MIN_SECONDS, max], where `max` is an
- * operator setting (Settings page). "One send per interval, per account" is
- * enforced in `src/inngest/functions/process-comment.ts`: the wait runs as a
- * blocking pause inside the delivery step (which holds the per-account
- * concurrency slot, limit 1) rather than step.sleep (which would release it).
+ * Goal: never blast Meta with a burst of API calls, and make automated sends
+ * land on human-looking timing rather than a fixed cadence. Two native Inngest
+ * primitives combine in `src/inngest/functions/process-comment.ts`:
+ *
+ *  1. A per-account `throttle` (keyed on the platform account) caps how often a
+ *     run may START per account. Its period is fixed at DELAY_MIN_SECONDS, so
+ *     each account sends at most ~once per that window — a hard rate cap that
+ *     protects Meta. Throttle ENQUEUES the backlog (it never drops sends) and
+ *     evenly spaces run starts across the period.
+ *  2. A `step.sleep` jitter of [0, max - DELAY_MIN_SECONDS] seconds before the
+ *     send, where `max` is the operator's configured ceiling read at runtime.
+ *     This scatters the actual send moment within the operator's window so the
+ *     timing looks human instead of landing exactly on the throttle grid.
+ *
+ * Effective per-account send timing therefore falls in roughly
+ * [DELAY_MIN_SECONDS, max]: the throttle floor plus the random jitter. The
+ * throttle period must be a compile-time constant (Inngest evaluates function
+ * config once at definition), so only the jitter can track the live operator
+ * setting; together they honor the configured [10, max] window.
  *
  * The floor is fixed at 10s; operators only raise the ceiling (up to 55s).
  */
 import { getDb } from "@/lib/db";
 
-/** Fixed lower bound of the random delay window (seconds). */
+/** Fixed lower bound of the delay window (seconds). */
 export const DELAY_MIN_SECONDS = 10;
 /** Highest ceiling an operator may configure (seconds). */
 export const DELAY_MAX_CEILING = 55;
@@ -21,6 +33,13 @@ export const DELAY_MAX_CEILING = 55;
 export const DELAY_MAX_DEFAULT = 25;
 /** `settings` table row that stores the configurable ceiling. */
 export const DELAY_MAX_PROVIDER = "delay_max_seconds";
+/**
+ * Per-account throttle period (seconds). Fixed at the delay floor because
+ * Inngest evaluates `throttle` config once at function-definition time and so
+ * it can't read the per-operator ceiling. One run start per account per this
+ * window is the hard Meta rate cap; jitter (below) adds the human variation.
+ */
+export const DELAY_THROTTLE_PERIOD_SECONDS = DELAY_MIN_SECONDS;
 
 /** Clamp a requested ceiling into [DELAY_MIN_SECONDS, DELAY_MAX_CEILING]. */
 export function clampDelayMax(value: number): number {
@@ -49,11 +68,14 @@ export async function getDelayMaxSeconds(): Promise<number> {
 }
 
 /**
- * Pick a random whole-second delay in [DELAY_MIN_SECONDS, max] (inclusive).
- * `max` is clamped first, so out-of-range input can't widen the window.
+ * Pick the random jitter (whole seconds) to `step.sleep` before a send, in
+ * [0, max - DELAY_MIN_SECONDS] inclusive. Layered on top of the throttle floor
+ * (DELAY_THROTTLE_PERIOD_SECONDS), this lands the actual send in roughly
+ * [DELAY_MIN_SECONDS, max]. `max` is clamped first, so out-of-range input can't
+ * widen the window; when max == the floor the jitter is always 0.
  */
-export function pickDelaySeconds(maxSeconds: number): number {
+export function pickJitterSeconds(maxSeconds: number): number {
 	const max = clampDelayMax(maxSeconds);
-	const span = max - DELAY_MIN_SECONDS + 1;
-	return DELAY_MIN_SECONDS + Math.floor(Math.random() * span);
+	const span = max - DELAY_MIN_SECONDS + 1; // inclusive of 0..(max-min)
+	return Math.floor(Math.random() * span);
 }
