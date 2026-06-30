@@ -134,17 +134,18 @@ CREATE TABLE IF NOT EXISTS comment_automations (
   )
 );
 
+-- Idempotent migrations for pre-existing DBs (CREATE TABLE above won't alter):
+-- add per-post targeting, drop the removed dm_link column. MUST run before the
+-- post index below, which references platform_post_id.
+ALTER TABLE comment_automations ADD COLUMN IF NOT EXISTS platform_post_id text;
+ALTER TABLE comment_automations DROP COLUMN IF EXISTS dm_link;
+
 CREATE INDEX IF NOT EXISTS idx_comment_automations_account
   ON comment_automations (platform_account_id) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_comment_automations_scope
   ON comment_automations (scope) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_comment_automations_post
   ON comment_automations (platform_account_id, platform_post_id) WHERE is_active = true;
-
--- Idempotent migrations for pre-existing DBs (CREATE TABLE above won't alter):
--- add per-post targeting, drop the removed dm_link column.
-ALTER TABLE comment_automations ADD COLUMN IF NOT EXISTS platform_post_id text;
-ALTER TABLE comment_automations DROP COLUMN IF EXISTS dm_link;
 
 DROP TRIGGER IF EXISTS set_updated_at ON comment_automations;
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON comment_automations
