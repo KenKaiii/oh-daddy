@@ -281,6 +281,27 @@ export async function runKeywordAutomation(
 }
 
 /**
+ * Read-only check: would this comment match an active automation? Reuses the
+ * exact same load + keyword logic as `runKeywordAutomation` but performs NO
+ * side effects (no claim, no Meta calls). Used to decide whether to apply the
+ * smart send delay before committing to delivery, so non-matching comments are
+ * never throttled.
+ */
+export async function commentMatchesAutomation(
+	params: Pick<
+		RunKeywordAutomationParams,
+		"platformAccountId" | "platformPostId" | "commentText"
+	>,
+): Promise<boolean> {
+	const automations = await loadAutomations(
+		params.platformAccountId,
+		params.platformPostId,
+	);
+	if (automations.length === 0) return false;
+	return findMatchingAutomation(params.commentText, automations) !== null;
+}
+
+/**
  * Load active automations for an incoming comment: account-specific first,
  * then the platform-wide `meta` scope (e.g. "All Meta accounts").
  *

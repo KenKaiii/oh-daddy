@@ -51,18 +51,31 @@ interface StatusRow {
 	is_set: boolean;
 }
 
+// Smart-delay window. Floor is fixed; operators raise the ceiling up to this.
+const DELAY_MIN = 10;
+const DELAY_CEILING = 55;
+
 export default function SettingsPage() {
 	const [values, setValues] = useState<Record<string, string>>({});
 	const [status, setStatus] = useState<StatusRow[]>([]);
 	const [saving, setSaving] = useState(false);
 	const [appUrl, setAppUrl] = useState("");
+	const [delayMax, setDelayMax] = useState(25);
+	const [savingDelay, setSavingDelay] = useState(false);
 
 	const load = useCallback(async () => {
 		try {
-			const res = await apiFetch("/api/settings");
+			const [res, delayRes] = await Promise.all([
+				apiFetch("/api/settings"),
+				apiFetch("/api/settings/delay"),
+			]);
 			const json = await res.json();
 			if (!res.ok) throw new Error(json.error ?? "Failed to load settings");
 			setStatus(json.data ?? []);
+			const delayJson = await delayRes.json();
+			if (delayRes.ok && typeof delayJson.data?.max === "number") {
+				setDelayMax(delayJson.data.max);
+			}
 		} catch (e) {
 			notify.error(e);
 		}
@@ -72,6 +85,25 @@ export default function SettingsPage() {
 		load();
 		setAppUrl(window.location.origin);
 	}, [load]);
+
+	async function saveDelay() {
+		setSavingDelay(true);
+		try {
+			const res = await apiFetch("/api/settings/delay", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ max: delayMax }),
+			});
+			const json = await res.json();
+			if (!res.ok) throw new Error(json.error ?? "Failed to save");
+			if (typeof json.data?.max === "number") setDelayMax(json.data.max);
+			notify.success("Send delay saved");
+		} catch (e) {
+			notify.error(e);
+		} finally {
+			setSavingDelay(false);
+		}
+	}
 
 	function statusFor(provider: string): StatusRow | undefined {
 		return status.find((s) => s.provider === provider);
@@ -237,6 +269,43 @@ export default function SettingsPage() {
 									: "Set the Webhook Verify Token above first"}
 							</code>
 						</div>
+					</CardContent>
+				</Card>
+
+				<Card className="glass-hover">
+					<CardHeader>
+						<CardTitle>Send delays</CardTitle>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<p className="text-sm text-muted-foreground">
+							When a comment matches, the reply + DM are sent after a random
+							wait so you don't blast the Meta API. Each connected account sends
+							one action per interval — multiple accounts run in parallel.
+						</p>
+						<div className="space-y-1.5">
+							<span className="flex items-center gap-1.5">
+								<Label htmlFor="delay-max">
+									Delay window: {DELAY_MIN}–{delayMax}s
+								</Label>
+								<InfoTip text="The floor is fixed at 10 seconds. Set the upper bound (up to 55s). Each send waits a random whole number of seconds in this range." />
+							</span>
+							<input
+								id="delay-max"
+								type="range"
+								min={DELAY_MIN}
+								max={DELAY_CEILING}
+								value={delayMax}
+								onChange={(e) => setDelayMax(Number(e.target.value))}
+								className="w-full accent-[var(--primary)]"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Sends wait a random {DELAY_MIN}–{delayMax} seconds. Max {""}
+								{DELAY_CEILING}s.
+							</p>
+						</div>
+						<Button onClick={saveDelay} disabled={savingDelay}>
+							{savingDelay ? "Saving…" : "Save send delay"}
+						</Button>
 					</CardContent>
 				</Card>
 			</div>

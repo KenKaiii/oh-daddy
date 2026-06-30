@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 import { inngest } from "@/inngest/client";
-import { runKeywordAutomation } from "@/lib/automations/run-automation";
+import { getDelayMaxSeconds, pickDelaySeconds } from "@/lib/automation-delay";
+import {
+	commentMatchesAutomation,
+	runKeywordAutomation,
+} from "@/lib/automations/run-automation";
 import { decryptToken } from "@/lib/crypto";
 import { getDb } from "@/lib/db";
 import { getAdapter } from "@/lib/platforms";
@@ -18,7 +22,14 @@ const payloadSchema = z.object({
 export const processComment = inngest.createFunction(
 	{
 		id: "process-comment",
-		concurrency: { limit: 5 },
+		// Per-account throttle: at most one comment in-flight per connected
+		// account at a time. Combined with the smart delay below, this enforces
+		// "one send per random interval" per account while different accounts run
+		// in parallel. A second cap bounds total concurrency across all accounts.
+		concurrency: [
+			{ limit: 1, key: "event.data.platformAccountId" },
+			{ limit: 5 },
+		],
 		retries: 3,
 		triggers: [{ event: "comment/process" }],
 	},
@@ -231,7 +242,31 @@ export const processComment = inngest.createFunction(
 		}
 
 		// ──────────────────────────────────────────────────────────────
-		// STEP 2: Run keyword automations.
+		// STEP 2: Smart delay (only when a comment actually matches).
+		//
+		// Read-only match check first, so non-matching comments are NOT throttled
+		// — they release the per-account concurrency slot immediately. When a
+		// comment does match, sleep a random interval; because the concurrency
+		// slot is held across the sleep, the next matching comment on the SAME
+		// account can't fire until this one finishes — one send per interval.
+		// ──────────────────────────────────────────────────────────────
+		const matched = await step.run("match-check", () =>
+			commentMatchesAutomation({
+				platformAccountId: parsed.platformAccountId,
+				platformPostId: ingested.platformPostId,
+				commentText: ingested.content,
+			}),
+		);
+
+		if (matched) {
+			const delaySeconds = await step.run("pick-delay", async () =>
+				pickDelaySeconds(await getDelayMaxSeconds()),
+			);
+			await step.sleep("smart-delay", `${delaySeconds}s`);
+		}
+
+		// ──────────────────────────────────────────────────────────────
+		// STEP 3: Run keyword automations (claim-before-send, then deliver).
 		// ──────────────────────────────────────────────────────────────
 		const automationHandled = await step.run(
 			"check-keyword-automation",

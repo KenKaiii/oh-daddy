@@ -148,7 +148,10 @@ vi.mock("@/lib/platforms", () => ({
 	}),
 }));
 
-import { runKeywordAutomation } from "./run-automation";
+import {
+	commentMatchesAutomation,
+	runKeywordAutomation,
+} from "./run-automation";
 
 // ── Fixtures ───────────────────────────────────────────────────────────────
 
@@ -376,5 +379,44 @@ describe("runKeywordAutomation — partial configs", () => {
 		expect(postCommentReply).not.toHaveBeenCalled();
 		expect(sendPrivateReply).not.toHaveBeenCalled();
 		expect(result).toMatchObject({ matched: true, duplicate: false });
+	});
+});
+
+describe("commentMatchesAutomation — read-only match check", () => {
+	it("returns true when a keyword matches, with no side effects", async () => {
+		config.accountAutomations = [automation()];
+		const result = await commentMatchesAutomation({
+			platformAccountId: "acc-1",
+			platformPostId: null,
+			commentText: "guide",
+		});
+
+		expect(result).toBe(true);
+		// Pure check — never claims or calls Meta.
+		expect(events).not.toContain("claim:insert");
+		expect(postCommentReply).not.toHaveBeenCalled();
+		expect(sendPrivateReply).not.toHaveBeenCalled();
+	});
+
+	it("returns false when nothing matches", async () => {
+		config.accountAutomations = [automation({ keywords: ["unrelated"] })];
+		const result = await commentMatchesAutomation({
+			platformAccountId: "acc-1",
+			platformPostId: null,
+			commentText: "hello world",
+		});
+
+		expect(result).toBe(false);
+	});
+
+	it("returns false for a post-specific rule on a different post", async () => {
+		config.accountAutomations = [automation({ platform_post_id: "post-X" })];
+		const result = await commentMatchesAutomation({
+			platformAccountId: "acc-1",
+			platformPostId: "post-Y",
+			commentText: "guide",
+		});
+
+		expect(result).toBe(false);
 	});
 });
