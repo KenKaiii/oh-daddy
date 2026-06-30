@@ -175,7 +175,12 @@ export function appWebhooksUrl(appId: string): string {
 	return `${APP_BASE}/${appId}/webhooks/`;
 }
 
-/** Instagram product → API setup with Instagram login (App ID, secret, webhooks). */
+/**
+ * “API setup with Instagram login” — the Manage messaging & content on Instagram
+ * use-case setup tab. Holds the Instagram app id/secret, business-login redirect
+ * URIs, and the Instagram webhooks config. Direct shortcut to the same tab the
+ * operator reaches via Use cases → Manage messaging & content on Instagram.
+ */
 export function appInstagramSetupUrl(appId: string): string {
 	return `${APP_BASE}/${appId}/instagram-business/API-Setup/`;
 }

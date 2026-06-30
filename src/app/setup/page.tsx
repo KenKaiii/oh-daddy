@@ -331,12 +331,15 @@ export default function SetupPage() {
 						<ul className="space-y-2">
 							<li className="rounded-md border border-border/60 bg-muted/40 px-3 py-2">
 								<p className="text-sm font-medium text-foreground">
-									Add the Instagram product
+									Add the Instagram use case
 								</p>
 								<p className="text-xs text-muted-foreground">
-									Choose <strong>API setup with Instagram login</strong>. This
-									lets people log in directly with an Instagram professional
-									account — no Facebook Page required.
+									Under <strong>Use cases</strong>, add{" "}
+									<strong>Manage messaging &amp; content on Instagram</strong>,
+									then customize it and choose{" "}
+									<strong>API setup with Instagram login</strong>. This lets
+									people log in directly with an Instagram professional account
+									— no Facebook Page required.
 								</p>
 							</li>
 							<li className="rounded-md border border-border/60 bg-muted/40 px-3 py-2">
@@ -355,15 +358,16 @@ export default function SetupPage() {
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
-							In your app, open{" "}
+							In your app, open <strong>Use cases</strong> →{" "}
+							<strong>Manage messaging &amp; content on Instagram</strong> →{" "}
 							{appId ? (
 								<ExtLink href={appInstagramSetupUrl(appId)}>
-									Instagram → API setup with Instagram login
+									API setup with Instagram login
 								</ExtLink>
 							) : (
-								<>Instagram → API setup with Instagram login</>
-							)}{" "}
-							and copy the <strong>Instagram app ID</strong>.
+								<>API setup with Instagram login</>
+							)}
+							. Copy the <strong>Instagram app ID</strong> shown there.
 						</p>
 						<PasteField
 							label="Instagram App ID"
@@ -396,10 +400,10 @@ export default function SetupPage() {
 							On the same{" "}
 							{appId ? (
 								<ExtLink href={appInstagramSetupUrl(appId)}>
-									Instagram → API setup with Instagram login
+									API setup with Instagram login
 								</ExtLink>
 							) : (
-								<>Instagram → API setup with Instagram login</>
+								<>API setup with Instagram login</>
 							)}{" "}
 							tab, reveal and copy the <strong>Instagram app secret</strong>.
 						</p>
@@ -418,7 +422,7 @@ export default function SetupPage() {
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
-							Add this redirect URI under the Instagram login settings of the{" "}
+							In the same{" "}
 							{appId ? (
 								<ExtLink href={appInstagramSetupUrl(appId)}>
 									API setup with Instagram login
@@ -426,7 +430,8 @@ export default function SetupPage() {
 							) : (
 								<>API setup with Instagram login</>
 							)}{" "}
-							tab.
+							tab, find <strong>Set up Instagram business login</strong> and
+							open its settings.
 						</p>
 						<CopyField
 							label="OAuth Redirect URI"
@@ -447,17 +452,17 @@ export default function SetupPage() {
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
-							Generate a verify token, then in the{" "}
+							Generate a verify token, then in the same{" "}
 							{appId ? (
 								<ExtLink href={appInstagramSetupUrl(appId)}>
-									Instagram → API setup with Instagram login
+									API setup with Instagram login
 								</ExtLink>
 							) : (
-								<>Instagram → API setup with Instagram login</>
+								<>API setup with Instagram login</>
 							)}{" "}
-							tab, open <strong>Configure webhooks</strong>. Paste the callback
-							URL and token, verify, then subscribe to the{" "}
-							<strong>comments</strong> field.
+							tab, open the <strong>Webhooks</strong> section (“Get real-time
+							notifications”). Paste the callback URL and token, verify, then
+							subscribe to the <strong>comments</strong> field.
 						</p>
 						{verifyTokenField}
 						<CopyField
