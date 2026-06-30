@@ -98,10 +98,10 @@ export default function SetupPage() {
 	);
 	const [loading, setLoading] = useState(true);
 	const confirm = useConfirm();
-	// The verify token generated in THIS session, kept so it can be re-copied on a
-	// later step (e.g. the Facebook webhooks step reuses the same token). Lost on
-	// reload — GET /api/settings never returns the stored secret.
-	const [generatedVerifyToken, setGeneratedVerifyToken] = useState("");
+	// The verify token value currently shown in the copy modal — either freshly
+	// generated or re-fetched from the server for re-copying (the Facebook step
+	// reuses the SAME token as Instagram).
+	const [revealedToken, setRevealedToken] = useState("");
 	const [tokenModalOpen, setTokenModalOpen] = useState(false);
 	// Per-item acknowledgement for the prerequisites step (gates its Next button).
 	const [prereqChecked, setPrereqChecked] = useState<Record<string, boolean>>(
@@ -236,8 +236,29 @@ export default function SetupPage() {
 		const token = randomVerifyToken();
 		await saveSetting("meta_webhook_verify_token", token);
 		// Surface the value so the operator can paste the SAME token into Meta.
-		setGeneratedVerifyToken(token);
+		setRevealedToken(token);
 		setTokenModalOpen(true);
+	}
+
+	// Re-reveal the saved verify token so it can be copied on a later step (the
+	// Facebook webhooks step reuses the SAME token as Instagram). Fetched fresh
+	// from the server so it survives page reloads — in-memory state alone would be
+	// lost, leaving regenerate (which breaks the already-registered webhook) as
+	// the only option.
+	async function copyExistingToken() {
+		try {
+			const res = await apiFetch("/api/settings/verify-token");
+			const json = await res.json();
+			if (!res.ok) throw new Error(json.error ?? "Failed to load token");
+			if (!json.value) {
+				notify.error("No verify token saved yet. Generate one first.");
+				return;
+			}
+			setRevealedToken(json.value);
+			setTokenModalOpen(true);
+		} catch (e) {
+			notify.error(e);
+		}
 	}
 
 	// Convenience: Meta's Instagram business-login settings show a ready-made
@@ -334,12 +355,8 @@ export default function SetupPage() {
 			onSave={(v) => saveSetting("meta_webhook_verify_token", v)}
 			rightSlot={
 				<span className="flex items-center gap-2">
-					{tokenIsSet && generatedVerifyToken && (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => setTokenModalOpen(true)}
-						>
+					{tokenIsSet && (
+						<Button variant="outline" size="sm" onClick={copyExistingToken}>
 							Copy token
 						</Button>
 					)}
@@ -863,21 +880,17 @@ export default function SetupPage() {
 			)}
 
 			{/* The token is already saved to the system. This modal surfaces it for
-			    copying into Meta — the same value for both the Instagram and Page
-			    webhooks. Re-openable via “Copy token” during the session, but not after
-			    a reload (GET /api/settings doesn't return secrets). */}
+			    copying into Meta — the SAME value for both the Instagram and Page
+			    webhooks. “Copy token” re-fetches it from the server, so it works across
+			    reloads without forcing a regenerate. */}
 			<Dialog open={tokenModalOpen} onClose={() => setTokenModalOpen(false)}>
 				<DialogHeader
 					title="Webhook verify token"
-					description="Saved to this app already. Paste this exact value as the Verify Token in BOTH the Instagram and Facebook webhook setups — it's the same token for both. It won't be retrievable after you leave setup."
+					description="Paste this exact value as the Verify Token in BOTH the Instagram and Facebook webhook setups — it's the same token for both."
 				/>
 				<div className="flex items-center gap-2">
-					<Input
-						readOnly
-						value={generatedVerifyToken}
-						className="font-mono text-xs"
-					/>
-					<CopyButton value={generatedVerifyToken} />
+					<Input readOnly value={revealedToken} className="font-mono text-xs" />
+					<CopyButton value={revealedToken} />
 				</div>
 				<DialogFooter>
 					<Button onClick={() => setTokenModalOpen(false)}>Done</Button>
