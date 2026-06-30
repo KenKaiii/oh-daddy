@@ -859,11 +859,11 @@ export default function SetupPage() {
 								disabled={!reached}
 								onClick={() => setCurrent(i)}
 								className={cn(
-									"ring-focus h-1.5 flex-1 rounded-full transition-colors",
+									"ring-focus h-2 flex-1 rounded-full transition-all duration-200",
 									done
-										? "bg-primary"
+										? "bg-primary/40"
 										: i === current
-											? "bg-primary/50"
+											? "bg-primary h-3"
 											: "bg-border",
 									reached ? "cursor-pointer" : "cursor-default",
 								)}
@@ -907,23 +907,6 @@ export default function SetupPage() {
 					</div>
 				</CardContent>
 			</Card>
-
-			{allDone && (
-				<Card className="border-success/40">
-					<CardContent className="flex flex-col items-start gap-2 p-5">
-						<p className="font-display text-base font-semibold">
-							Setup complete 🎉
-						</p>
-						<p className="text-sm text-muted-foreground">
-							Everything's connected. Create your first keyword automation.
-						</p>
-						<Button onClick={() => router.push("/automations")}>
-							Go to Automations
-						</Button>
-					</CardContent>
-				</Card>
-			)}
-
 			{/* The token is already saved to the system. This modal surfaces it for
 			    copying into Meta — the SAME value for both the Instagram and Page
 			    webhooks. “Copy token” re-fetches it from the server, so it works across
