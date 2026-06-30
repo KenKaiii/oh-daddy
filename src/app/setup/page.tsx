@@ -751,9 +751,9 @@ export default function SetupPage() {
 						</p>
 						<ol className="space-y-3 text-sm text-muted-foreground">
 							<li>
-								<strong className="text-foreground">
+								<span className="font-semibold text-foreground">
 									1. Add your Instagram account as a tester
-								</strong>
+								</span>
 								<br />
 								In the Meta app dashboard, go to <strong>Roles</strong> → click{" "}
 								<strong>Add People</strong> → choose{" "}
@@ -761,9 +761,9 @@ export default function SetupPage() {
 								username.
 							</li>
 							<li>
-								<strong className="text-foreground">
+								<span className="font-semibold text-foreground">
 									2. Accept the invitation on Instagram
-								</strong>
+								</span>
 								<br />
 								Go to{" "}
 								<ExtLink href="https://www.instagram.com/">
@@ -775,9 +775,9 @@ export default function SetupPage() {
 								<strong>Accept</strong>.
 							</li>
 							<li>
-								<strong className="text-foreground">
+								<span className="font-semibold text-foreground">
 									3. Come back and connect
-								</strong>
+								</span>
 								<br />
 								Once accepted, return here and click Next to connect your
 								account.
@@ -838,9 +838,9 @@ export default function SetupPage() {
 						</p>
 						<ol className="space-y-3 text-sm text-muted-foreground">
 							<li>
-								<strong className="text-foreground">
+								<span className="font-semibold text-foreground">
 									1. Open your app dashboard
-								</strong>
+								</span>
 								<br />
 								Go to{" "}
 								{appId ? (
@@ -853,9 +853,9 @@ export default function SetupPage() {
 								.
 							</li>
 							<li>
-								<strong className="text-foreground">
+								<span className="font-semibold text-foreground">
 									2. Click Publish → Publish App
-								</strong>
+								</span>
 								<br />
 								Use the <strong>Publish</strong> control (the Development/Live
 								toggle at the top of the dashboard) and confirm{" "}
@@ -978,7 +978,7 @@ export default function SetupPage() {
 						)}
 					</div>
 
-					{renderBody(step.id)}
+					<div className="setup-step-body space-y-4">{renderBody(step.id)}</div>
 
 					<div className="flex items-center justify-between border-t border-border/60 pt-4">
 						<Button

@@ -472,3 +472,21 @@ body {
 		animation: none;
 	}
 }
+
+/*
+ * Setup wizard: highlight inline UI keywords so the exact things to click in the
+ * Meta dashboard (Publish, Save changes, Add People, comments, …) stand out
+ * instead of blending into the prose. Every <strong> inside a step body becomes
+ * an accent chip; box-decoration-break keeps the background intact when a long
+ * label wraps across lines. Numbered step headers use a plain <span>, so they
+ * are intentionally excluded.
+ */
+.setup-step-body strong {
+	border-radius: 0.3rem;
+	background: color-mix(in oklab, var(--primary) 16%, transparent);
+	color: color-mix(in oklab, var(--primary) 65%, white);
+	font-weight: 600;
+	padding: 0.05em 0.34em;
+	box-decoration-break: clone;
+	-webkit-box-decoration-break: clone;
+}
