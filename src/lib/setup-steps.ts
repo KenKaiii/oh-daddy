@@ -164,9 +164,8 @@ export const SETUP_STEPS: readonly SetupStepMeta[] = [
 	},
 	{
 		id: "publish-app",
-		title: "Publish your app (go Live)",
-		summary:
-			"Switch the app to Live so Meta delivers comment webhooks in production.",
+		title: "Publish your app",
+		summary: "Click Publish so Meta delivers comment webhooks in production.",
 		completion: { kind: "self" },
 	},
 	// ── Connect ─────────────────────────────────────────────────────────

@@ -827,9 +827,9 @@ export default function SetupPage() {
 				return (
 					<>
 						<p className="text-sm text-muted-foreground">
-							Your app starts in <strong>Development</strong> mode, where Meta
-							won't deliver real <strong>comment</strong> webhooks. Switching to{" "}
-							<strong>Live</strong> turns them on in production.
+							While your app is unpublished, Meta won't deliver real{" "}
+							<strong>comment</strong> webhooks. Publishing turns them on in
+							production.
 						</p>
 						<ol className="space-y-3 text-sm text-muted-foreground">
 							<li>
@@ -849,13 +849,12 @@ export default function SetupPage() {
 							</li>
 							<li>
 								<span className="font-semibold text-foreground">
-									2. Click Publish → Publish App
+									2. Click the Publish button
 								</span>
 								<br />
-								Use the <strong>Publish</strong> control (the Development/Live
-								toggle at the top of the dashboard) and confirm{" "}
-								<strong>Publish App</strong>. The mode should now read{" "}
-								<strong>Live</strong>.
+								Find the <strong>Publish</strong> button in the bottom corner of
+								the page and click it. Confirm <strong>Publish App</strong> if
+								prompted — the app is now live.
 							</li>
 						</ol>
 						<p className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
