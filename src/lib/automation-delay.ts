@@ -3,27 +3,25 @@
  *
  * Goal: never blast Meta with a burst of API calls, and make automated sends
  * land on human-looking timing rather than a fixed cadence. Ingestion stays
- * real-time in `process-comment`; only the SEND side carries delay. Two native
- * Inngest primitives combine in `src/inngest/functions/automation-send.ts` (the
+ * real-time in `process-comment`; only the SEND side carries delay. Two
+ * mechanisms combine in `src/inngest/functions/automation-send.ts` (the
  * fan-out delivery worker process-comment emits to on a match):
  *
- *  1. A per-account `throttle` (keyed on the platform account) caps how often a
- *     run may START per account. Its period is fixed at DELAY_MIN_SECONDS, so
- *     each account sends at most ~once per that window — a hard rate cap that
- *     protects Meta. Throttle ENQUEUES the backlog (it never drops sends) and
- *     evenly spaces run starts across the period.
+ *  1. A GLOBAL `throttle` (no key — one shared bucket across every account)
+ *     hard-caps run starts at GLOBAL_HOURLY_SEND_LIMIT per hour, combined
+ *     across all connected accounts. This is the real Meta rate-limit
+ *     protection: it doesn't matter how many accounts are connected, total
+ *     outbound sends can never exceed the cap. Throttle ENQUEUES the backlog
+ *     (it never drops sends), it just delays runs once the hourly bucket
+ *     fills.
  *  2. A `step.sleep` jitter of [0, max - DELAY_MIN_SECONDS] seconds before the
  *     send, where `max` is the operator's configured ceiling read at runtime.
- *     This scatters the actual send moment within the operator's window so the
- *     timing looks human instead of landing exactly on the throttle grid.
+ *     This scatters the actual send moment so the timing looks human instead
+ *     of landing exactly on the throttle grid.
  *
- * Effective per-account send timing therefore falls in roughly
- * [DELAY_MIN_SECONDS, max]: the throttle floor plus the random jitter. The
- * throttle period must be a compile-time constant (Inngest evaluates function
- * config once at definition), so only the jitter can track the live operator
- * setting; together they honor the configured [10, max] window.
- *
- * The floor is fixed at 10s; operators only raise the ceiling (up to 55s).
+ * The jitter floor (DELAY_MIN_SECONDS) and ceiling are purely cosmetic
+ * per-send timing, layered on top of whatever the global throttle already
+ * enforces; they don't themselves cap throughput.
  */
 import { getDb } from "@/lib/db";
 
@@ -35,13 +33,6 @@ export const DELAY_MAX_CEILING = 55;
 export const DELAY_MAX_DEFAULT = 25;
 /** `settings` table row that stores the configurable ceiling. */
 export const DELAY_MAX_PROVIDER = "delay_max_seconds";
-/**
- * Per-account throttle period (seconds). Fixed at the delay floor because
- * Inngest evaluates `throttle` config once at function-definition time and so
- * it can't read the per-operator ceiling. One run start per account per this
- * window is the hard Meta rate cap; jitter (below) adds the human variation.
- */
-export const DELAY_THROTTLE_PERIOD_SECONDS = DELAY_MIN_SECONDS;
 
 /** Clamp a requested ceiling into [DELAY_MIN_SECONDS, DELAY_MAX_CEILING]. */
 export function clampDelayMax(value: number): number {

@@ -42,6 +42,10 @@ Scope an automation to one specific post, or leave it open to every post on the 
 
 Every send claims its row in Postgres before it touches the Meta API. Webhook retries and Inngest retries can't send the same reply twice.
 
+### Global send cap
+
+All sends across every connected account share one hard cap of 195 comments/hour, just under Meta's Graph API ceiling. Doesn't matter if you've got 1 account or 5, the whole deploy can never trip Meta's rate limit. Overflow gets queued and delayed, never dropped.
+
 ### Secrets encrypted at rest
 
 Access tokens and DB-stored settings are AES-256-GCM encrypted. A leaked backup or a raw SQL dump never hands over a live Meta token.
@@ -106,18 +110,18 @@ That's it. Head to `/setup` to connect Meta.
 
 ## ☁️ Deploy (Railway)
 
-**Seamless path:** run the `/setup-railway` agent command (or directly: `bash scripts/railway-setup.sh`). It provisions Postgres, generates the env-only secrets, provisions a self-hosted Inngest server and wires the app to it, mints a domain, deploys, applies the schema, and syncs Inngest functions. It doesn't ask for Meta/Instagram credentials, the deployed app's `/setup` wizard collects those and stores them encrypted in the database. Idempotent, never rotates an existing `APP_ENCRYPTION_KEY`. Prereqs: `railway login` (browser auth, one time), and `RAILWAY_WORKSPACE` only if your account has more than one workspace.
+One script does everything: provisions Postgres, generates the env-only secrets (`APP_ENCRYPTION_KEY`, `ADMIN_PASSWORD`), provisions a self-hosted Inngest server and wires the app to it, mints a domain, deploys, applies the schema, and syncs Inngest functions. It doesn't ask for Meta/Instagram credentials, you enter those later in the deployed app's `/setup` wizard, encrypted in the database.
 
-**Manual path:** set every value from `.env.example` as a service variable in the Railway dashboard (Settings → Variables) or via `railway variable set`. In particular:
+```bash
+railway login   # browser auth, one time
+bash scripts/railway-setup.sh
+```
 
-- `APP_ENCRYPTION_KEY` → `openssl rand -base64 32`. Set it once, before the first token is written, and never change it: rotating or losing it makes every previously-encrypted row undecryptable (you'd have to reconnect each Meta account to re-issue tokens).
-- `ADMIN_PASSWORD`, `DATABASE_URL` → Railway-managed, never committed.
-- Meta/Instagram credentials are normally entered through the deployed `/setup` wizard and stored encrypted in the DB. Env vars remain a fallback for manual/legacy installs.
-- **Self-hosted Inngest:** remove `INNGEST_DEV`, run a self-hosted `inngest` server, and set `INNGEST_BASE_URL`, `INNGEST_SIGNING_KEY`, `INNGEST_EVENT_KEY` to match it. Not Inngest Cloud.
+If you're on Claude Code / GG Coder, `/setup-railway` runs the same script for you with preflight checks. Both do the exact same thing, the script is the real automation either way.
 
-Apply the schema against the Railway database once using the DB's public proxy URL (`psql "$DATABASE_PUBLIC_URL" -f db/schema.sql`).
+It's idempotent (safe to re-run) and never rotates an existing `APP_ENCRYPTION_KEY`, losing that key makes every previously-encrypted token undecryptable. Only set `RAILWAY_WORKSPACE` if your account has more than one workspace.
 
-Self-hosted Inngest doesn't auto-discover function changes on deploy, so this repo re-syncs automatically: `railway.json` sets the start command to `scripts/start.sh`, which backgrounds `scripts/post-deploy-sync.mjs` on every deploy to re-register the app with the Inngest engine. Manual nudge if you ever need it:
+Self-hosted Inngest doesn't auto-discover function changes on deploy, so this repo re-syncs automatically on every deploy via `scripts/post-deploy-sync.mjs`. Manual nudge if you ever need it:
 
 ```bash
 curl -X PUT https://<your-app-domain>/api/inngest
@@ -152,7 +156,7 @@ Inngest process-comment (unthrottled):
   STEP ingest      → normalize, upsert contact/conversation/message (dedup)
   STEP match-check → if keyword matches, emit "automation/send"
 
-Inngest automation-send (delayed + throttled per account):
+Inngest automation-send (delayed + globally rate-capped):
   STEP delay       → optional operator-configured wait before sending
   STEP send        → dedup + 24h cooldown
                    → CLAIM automation_matches row BEFORE posting (idempotency)
@@ -160,6 +164,8 @@ Inngest automation-send (delayed + throttled per account):
                    → send Private Reply DM (bypasses the 24h window)
                    → persist both as assistant messages
 ```
+
+All runs across every account share one throttle bucket capped at 195 sends/hour, so the combined total, not per-account, never trips Meta's Graph API ceiling.
 
 The dedup gate is the unique index `(automation_id, message_id)`. The claim row is inserted before any external API call so webhook/Inngest retries can't double-post. If the public reply itself throws, the claim is rolled back so the next delivery retries.
 
@@ -176,14 +182,6 @@ ADMIN_PASSWORD=some-long-random-string
 Visit `/login` and enter the password for a browser session, or send `Authorization: Bearer <ADMIN_PASSWORD>` programmatically. Both are compared in constant time. If `ADMIN_PASSWORD` is unset, protected API routes return 503 (fail closed).
 
 `/api/webhooks/meta`, `/api/oauth/callback`, and `/api/inngest` are exempt since they carry their own verification (HMAC signature, one-time CSRF token, and Inngest's own signing respectively) and need to stay internet-reachable.
-
----
-
-## ⚠️ Known limitations
-
-- **Single shared-secret auth**, one operator password, no per-user accounts. Fine for a single-tenant deploy, add real user auth for multi-tenant.
-- **No automation caps**, could exceed Meta's ~200 comments/hour Graph ceiling under load.
-- **Comment-triggered DMs only**, inbound DM processing is out of scope.
 
 ---
 

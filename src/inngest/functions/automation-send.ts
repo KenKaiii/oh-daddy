@@ -1,14 +1,19 @@
 import { z } from "zod";
 
 import { inngest } from "@/inngest/client";
-import {
-	DELAY_THROTTLE_PERIOD_SECONDS,
-	getDelayMaxSeconds,
-	pickJitterSeconds,
-} from "@/lib/automation-delay";
+import { getDelayMaxSeconds, pickJitterSeconds } from "@/lib/automation-delay";
 import { runKeywordAutomation } from "@/lib/automations/run-automation";
 import { decryptToken } from "@/lib/crypto";
 import { getDb } from "@/lib/db";
+
+/**
+ * Meta's Graph API rate-limits comment replies to roughly ~200/hour per app.
+ * Cap ourselves just under that ceiling, GLOBALLY across every connected
+ * account, so a deploy running several accounts can never trip Meta's limit
+ * no matter how many automations fire at once. The throttle below has no
+ * `key`, so every automation-send run (any account) shares one bucket.
+ */
+const GLOBAL_HOURLY_SEND_LIMIT = 195;
 
 /**
  * Payload emitted by `process-comment` (via `step.sendEvent`) once a comment is
@@ -33,13 +38,13 @@ const sendPayloadSchema = z.object({
  * Split out from `process-comment` so ingestion stays real-time — only the
  * SEND side carries the rate controls:
  *
- *  - `throttle` (per account): caps run STARTS to one per period, evenly
- *    spaced, enqueueing the backlog rather than dropping it. This is the hard
- *    Meta API rate cap. Different accounts are independent buckets and run in
- *    parallel.
+ *  - `throttle` (GLOBAL, no key): caps run STARTS at GLOBAL_HOURLY_SEND_LIMIT
+ *    per hour, combined across every connected account — not per account.
+ *    Enqueues the backlog rather than dropping it, so overflow just gets
+ *    delayed instead of lost. This is the hard Meta API rate cap.
  *  - `step.sleep` jitter: a random extra wait in [0, max-floor] read from the
  *    operator's live setting, so the actual send lands at a human-looking
- *    moment inside [floor, max] instead of exactly on the throttle grid.
+ *    moment instead of exactly on the throttle grid.
  *  - global `concurrency`: bounds total in-flight sends across all accounts.
  *
  * Retry safety: `runKeywordAutomation` claims the `automation_matches` row
@@ -50,9 +55,8 @@ export const automationSend = inngest.createFunction(
 	{
 		id: "automation-send",
 		throttle: {
-			key: "event.data.platformAccountId",
-			limit: 1,
-			period: `${DELAY_THROTTLE_PERIOD_SECONDS}s`,
+			limit: GLOBAL_HOURLY_SEND_LIMIT,
+			period: "1h",
 		},
 		concurrency: { limit: 5 },
 		retries: 3,
