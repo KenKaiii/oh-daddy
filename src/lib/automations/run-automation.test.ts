@@ -17,6 +17,8 @@ const harness = vi.hoisted(() => {
 		contactRow: Row | undefined;
 		postReplyError: Error | null;
 		sendDmError: Error | null;
+		/** Global emergency-stop switch (mocks "@/lib/automation-kill-switch"). */
+		automationsEnabled: boolean;
 	}
 
 	const config: Config = {
@@ -28,6 +30,7 @@ const harness = vi.hoisted(() => {
 		contactRow: { platform_user_id: "puid-1" },
 		postReplyError: null,
 		sendDmError: null,
+		automationsEnabled: true,
 	};
 
 	// Ordered log of side effects (sql tags + adapter calls) for ordering asserts.
@@ -43,6 +46,7 @@ const harness = vi.hoisted(() => {
 			contactRow: { platform_user_id: "puid-1" },
 			postReplyError: null,
 			sendDmError: null,
+			automationsEnabled: true,
 		});
 		Object.assign(config, overrides);
 		events.length = 0;
@@ -148,6 +152,11 @@ vi.mock("@/lib/platforms", () => ({
 	}),
 }));
 
+vi.mock("@/lib/automation-kill-switch", () => ({
+	getAutomationsEnabled: () =>
+		Promise.resolve(harness.config.automationsEnabled),
+}));
+
 import {
 	commentMatchesAutomation,
 	runKeywordAutomation,
@@ -204,6 +213,27 @@ beforeEach(() => {
 });
 
 // ── Tests ────────────────────────────────────────────────────────────────
+
+describe("runKeywordAutomation — global kill switch", () => {
+	it("returns matched:false and touches nothing when automations are globally disabled", async () => {
+		config.automationsEnabled = false;
+		config.accountAutomations = [automation()];
+		const result = await run();
+
+		expect(result).toEqual({ matched: false });
+		expect(events).toEqual([]);
+		expect(postCommentReply).not.toHaveBeenCalled();
+		expect(sendPrivateReply).not.toHaveBeenCalled();
+	});
+
+	it("matches normally once the switch is back on", async () => {
+		config.automationsEnabled = true;
+		config.accountAutomations = [automation()];
+		const result = await run();
+
+		expect(result.matched).toBe(true);
+	});
+});
 
 describe("runKeywordAutomation — no match", () => {
 	it("returns matched:false and touches no external API when nothing matches", async () => {

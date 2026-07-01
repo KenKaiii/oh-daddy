@@ -3,6 +3,7 @@ import { Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import { cookies } from "next/headers";
 
+import { AutomationsEnabledProvider } from "@/components/automations-enabled-context";
 import { ClickSound } from "@/components/click-sound";
 import SideRays from "@/components/SideRays";
 import { SiteMenu } from "@/components/site-menu";
@@ -111,16 +112,18 @@ export default async function RootLayout({
 					/>
 				</div>
 				<ConfirmProvider>
-					{authed && <SiteMenu />}
-					<main
-						className={
-							authed
-								? "mx-auto max-w-5xl px-4 pb-16 pt-24 sm:px-6"
-								: "mx-auto w-full max-w-5xl px-4 sm:px-6"
-						}
-					>
-						{children}
-					</main>
+					{authed ? (
+						<AutomationsEnabledProvider>
+							<SiteMenu />
+							<main className="mx-auto max-w-5xl px-4 pb-16 pt-24 sm:px-6">
+								{children}
+							</main>
+						</AutomationsEnabledProvider>
+					) : (
+						<main className="mx-auto w-full max-w-5xl px-4 sm:px-6">
+							{children}
+						</main>
+					)}
 				</ConfirmProvider>
 				<Toaster />
 			</body>

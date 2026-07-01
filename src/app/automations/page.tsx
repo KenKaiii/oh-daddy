@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { useAutomationsEnabled } from "@/components/automations-enabled-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -81,6 +82,7 @@ function postLabel(p: PlatformPost): string {
 }
 
 export default function AutomationsPage() {
+	const { enabled: automationsEnabled } = useAutomationsEnabled();
 	const [automations, setAutomations] = useState<Automation[]>([]);
 	const [accounts, setAccounts] = useState<AccountLite[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -295,6 +297,15 @@ export default function AutomationsPage() {
 				</Card>
 			)}
 
+			{automationsEnabled === false && (
+				<Card className="border-destructive/40 bg-destructive/5">
+					<CardContent className="p-5 text-sm text-destructive">
+						System is off. Nothing will send until you switch it back on next to
+						the logo.
+					</CardContent>
+				</Card>
+			)}
+
 			{loading ? (
 				<p className="text-sm text-muted-foreground">Loading…</p>
 			) : automations.length === 0 ? (
@@ -308,65 +319,79 @@ export default function AutomationsPage() {
 				</Card>
 			) : (
 				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-					{automations.map((a) => (
-						<Card key={a.id} className="glass-hover flex flex-col">
-							<CardContent className="flex flex-1 flex-col gap-3 p-5">
-								<div className="flex items-start justify-between gap-2">
-									<h3 className="min-w-0 truncate font-display font-semibold">
-										{a.name}
-									</h3>
-									<Switch
-										checked={a.is_active}
-										onCheckedChange={() => toggleActive(a)}
-										aria-label="Toggle active"
-									/>
-								</div>
+					{automations.map((a) => {
+						// The global kill switch overrides every automation's own
+						// is_active flag, so cards must visually show "off" while it's
+						// tripped instead of looking active when nothing can actually
+						// send. Individual toggling is disabled meanwhile to avoid a
+						// switch that visibly does nothing when clicked.
+						const systemOff = automationsEnabled === false;
+						const effectiveActive = a.is_active && !systemOff;
+						return (
+							<Card key={a.id} className="glass-hover flex flex-col">
+								<CardContent className="flex flex-1 flex-col gap-3 p-5">
+									<div className="flex items-start justify-between gap-2">
+										<h3 className="min-w-0 truncate font-display font-semibold">
+											{a.name}
+										</h3>
+										<Switch
+											checked={effectiveActive}
+											onCheckedChange={() => toggleActive(a)}
+											disabled={systemOff}
+											aria-label="Toggle active"
+										/>
+									</div>
 
-								<div className="flex flex-wrap items-center gap-1.5">
-									<Badge variant={a.is_active ? "success" : "muted"}>
-										{a.is_active ? "● Active" : "Paused"}
-									</Badge>
-									<Badge variant="outline">
-										{a.scope === "meta"
-											? "All Meta accounts"
-											: (a.platform_account?.account_name ?? "Account")}
-									</Badge>
-								</div>
+									<div className="flex flex-wrap items-center gap-1.5">
+										<Badge variant={effectiveActive ? "success" : "muted"}>
+											{systemOff
+												? "Paused (system off)"
+												: effectiveActive
+													? "● Active"
+													: "Paused"}
+										</Badge>
+										<Badge variant="outline">
+											{a.scope === "meta"
+												? "All Meta accounts"
+												: (a.platform_account?.account_name ?? "Account")}
+										</Badge>
+									</div>
 
-								<div className="flex flex-wrap gap-1.5">
-									{a.keywords.map((k) => (
-										<Badge key={k}>{k}</Badge>
-									))}
-								</div>
+									<div className="flex flex-wrap gap-1.5">
+										{a.keywords.map((k) => (
+											<Badge key={k}>{k}</Badge>
+										))}
+									</div>
 
-								<p className="text-xs text-muted-foreground">
-									{a.comment_replies.length} reply variant
-									{a.comment_replies.length === 1 ? "" : "s"} ·{" "}
-									{a.dm_message ? "DM on" : "no DM"} · {a.match_count} matches
-									{a.platform_post_id ? " · specific post" : ""}
-								</p>
+									<p className="text-xs text-muted-foreground">
+										{a.comment_replies.length} reply variant
+										{a.comment_replies.length === 1 ? "" : "s"} ·{" "}
+										{a.dm_message ? "DM on" : "no DM"} · {a.match_count} matches
+										{a.platform_post_id ? " · specific post" : ""}
+									</p>
 
-								<div className="mt-auto flex items-center gap-2 border-t border-border/60 pt-3">
-									<Button
-										variant="outline"
-										size="sm"
-										className="flex-1"
-										onClick={() => openEdit(a)}
-									>
-										Edit
-									</Button>
-									<Button
-										variant="ghost"
-										size="sm"
-										className="text-destructive"
-										onClick={() => remove(a)}
-									>
-										Delete
-									</Button>
-								</div>
-							</CardContent>
-						</Card>
-					))}
+									<div className="mt-auto flex items-center gap-2 border-t border-border/60 pt-3">
+										<Button
+											variant="outline"
+											size="sm"
+											className="flex-1"
+											onClick={() => openEdit(a)}
+										>
+											Edit
+										</Button>
+										<Button
+											variant="ghost"
+											size="sm"
+											className="text-destructive"
+											onClick={() => remove(a)}
+										>
+											Delete
+										</Button>
+									</div>
+								</CardContent>
+							</Card>
+						);
+					})}
 				</div>
 			)}
 
