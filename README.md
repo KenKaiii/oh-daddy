@@ -110,22 +110,13 @@ That's it. Head to `/setup` to connect Meta.
 
 ## ☁️ Deploy (Railway)
 
-One script does everything: provisions Postgres, generates the env-only secrets (`APP_ENCRYPTION_KEY`, `ADMIN_PASSWORD`), provisions a self-hosted Inngest server and wires the app to it, mints a domain, deploys, applies the schema, and syncs Inngest functions. It doesn't ask for Meta/Instagram credentials, you enter those later in the deployed app's `/setup` wizard, encrypted in the database.
+1. Fork this repo.
+2. Open it in Claude Code / GG Coder.
+3. Run `/setup-railway`.
 
-```bash
-railway login   # browser auth, one time
-bash scripts/railway-setup.sh
-```
+That's it. It provisions Postgres, secrets, a self-hosted Inngest server, and deploys the app for you. Meta/Instagram credentials get entered afterward in the deployed app's `/setup` wizard.
 
-If you're on Claude Code / GG Coder, `/setup-railway` runs the same script for you with preflight checks. Both do the exact same thing, the script is the real automation either way.
-
-It's idempotent (safe to re-run) and never rotates an existing `APP_ENCRYPTION_KEY`, losing that key makes every previously-encrypted token undecryptable. Only set `RAILWAY_WORKSPACE` if your account has more than one workspace.
-
-Self-hosted Inngest doesn't auto-discover function changes on deploy, so this repo re-syncs automatically on every deploy via `scripts/post-deploy-sync.mjs`. Manual nudge if you ever need it:
-
-```bash
-curl -X PUT https://<your-app-domain>/api/inngest
-```
+**You need:** a Railway account, and the Railway CLI installed and logged in (`railway login`).
 
 ---
 
