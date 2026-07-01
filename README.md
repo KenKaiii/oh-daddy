@@ -1,22 +1,146 @@
-# oh-daddy — keyword automations (Meta only)
+# 🤖 Oh Daddy
 
-A minimal ManyChat-style tool: when someone comments a **keyword** on your
-Instagram or Facebook post, it posts a **public reply** and sends an
-**auto-DM** (via Meta Private Replies). Instagram + Facebook only — no AI, no
-other platforms.
+<p align="center">
+  <img src="docs/icon.png" alt="Oh Daddy" width="200">
+</p>
 
-Four pages: **Dashboard** (stats), **Automations** (keyword rules), **Accounts**
-(connect Meta via OAuth), **Settings** (Meta credentials + webhook config).
+<p align="center">
+  <strong>Comment a keyword, get a public reply and a DM. Automatically.</strong>
+</p>
 
-## Stack
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL%203.0-blue.svg?style=for-the-badge" alt="AGPL-3.0 License"></a>
+  <a href="https://youtube.com/@kenkaidoesai"><img src="https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="YouTube"></a>
+  <a href="https://skool.com/kenkai"><img src="https://img.shields.io/badge/Skool-Community-7C3AED?style=for-the-badge" alt="Skool"></a>
+</p>
 
-- **Next.js 16** (App Router, Turbopack)
-- **Postgres** (via the `postgres` driver; single pool in `src/lib/db.ts`)
-- **Inngest** (durable queue for processing comments)
-- **Tailwind v4** + hand-rolled UI primitives, **Biome** lint/format
-- **zod** validation
+**Oh Daddy** is a minimal, self-hosted, ManyChat-style tool for Instagram and Facebook comment automations. Someone comments a keyword on your post, they get a public reply right away plus a DM straight to their inbox. No human involved.
 
-## How a comment flows
+No AI, no chatbot builder, no 40 platforms you'll never touch. Just keyword in, reply + DM out.
+
+---
+
+## ✨ What it does
+
+### Keyword automations
+
+Someone comments a keyword under your post, they get a public reply (rotated so it's not the same line every time) and a private DM via Meta's Private Replies API.
+
+### Per-contact cooldown
+
+Same person comments the same keyword twice in 24 hours? They only get replied to once. No spam, no annoyed followers.
+
+### Per-post targeting
+
+Scope an automation to one specific post, or leave it open to every post on the account.
+
+### Four pages, nothing else
+
+**Dashboard** (stats), **Automations** (keyword rules), **Accounts** (connect Meta via OAuth), **Settings** (credentials + webhook config).
+
+### Built to not double-post
+
+Every send claims its row in Postgres before it touches the Meta API. Webhook retries and Inngest retries can't send the same reply twice.
+
+### Secrets encrypted at rest
+
+Access tokens and DB-stored settings are AES-256-GCM encrypted. A leaked backup or a raw SQL dump never hands over a live Meta token.
+
+---
+
+## 🆚 Oh Daddy vs ManyChat
+
+| | **Oh Daddy** | **ManyChat** |
+|---|---|---|
+| Cost | ~$5/month total, your own hosting | Starts at $29/month, **per account** |
+| Accounts | Add as many as you want (recommend keeping it to 4-5) | Pay-per-account, adds up fast |
+| Hosting | Self-hosted, you own the server and the data | Their cloud, your data lives on their servers |
+| Source | Open source (AGPL-3.0), read every line | Closed source |
+| Scope | Instagram + Facebook comments, on purpose | Instagram, Facebook, WhatsApp, Telegram, SMS, AI chatbots, and more |
+| Vendor lock-in | None, it's just Postgres + Next.js | Yes |
+
+If you need the full chatbot suite, ManyChat is a solid product. If all you need is "keyword comment → reply + DM" for a handful of accounts, this is a lot cheaper and it's yours.
+
+---
+
+## 🚀 Getting started
+
+### Fork it
+
+Click **Fork** (top right of this repo) so you've got your own copy to deploy from.
+
+### Clone it
+
+```bash
+git clone https://github.com/<your-username>/oh-daddy.git
+cd oh-daddy
+npm install
+```
+
+### Set up your environment
+
+Copy `.env.example` → `.env.local` and fill in `DATABASE_URL` and `APP_ENCRYPTION_KEY` (`openssl rand -base64 32`). Everything else, including your Meta/Instagram credentials, can be entered later through the app's `/setup` wizard.
+
+### Database
+
+Point `DATABASE_URL` at any Postgres instance (or spin up a throwaway one with Docker), then push the schema:
+
+```bash
+docker run -d --name oh-daddy-pg -p 5432:5432 \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=oh_daddy postgres:16-alpine
+
+npm run db:push
+```
+
+### Run
+
+```bash
+npm run dev
+```
+
+This starts **Next.js** (`localhost:3000`) and the **Inngest dev server** together. Just Next.js: `npm run dev:next`.
+
+That's it. Head to `/setup` to connect Meta.
+
+---
+
+## ☁️ Deploy (Railway)
+
+**Seamless path:** run the `/setup-railway` agent command (or directly: `bash scripts/railway-setup.sh`). It provisions Postgres, generates the env-only secrets, provisions a self-hosted Inngest server and wires the app to it, mints a domain, deploys, applies the schema, and syncs Inngest functions. It doesn't ask for Meta/Instagram credentials, the deployed app's `/setup` wizard collects those and stores them encrypted in the database. Idempotent, never rotates an existing `APP_ENCRYPTION_KEY`. Prereqs: `railway login` (browser auth, one time), and `RAILWAY_WORKSPACE` only if your account has more than one workspace.
+
+**Manual path:** set every value from `.env.example` as a service variable in the Railway dashboard (Settings → Variables) or via `railway variable set`. In particular:
+
+- `APP_ENCRYPTION_KEY` → `openssl rand -base64 32`. Set it once, before the first token is written, and never change it: rotating or losing it makes every previously-encrypted row undecryptable (you'd have to reconnect each Meta account to re-issue tokens).
+- `ADMIN_PASSWORD`, `DATABASE_URL` → Railway-managed, never committed.
+- Meta/Instagram credentials are normally entered through the deployed `/setup` wizard and stored encrypted in the DB. Env vars remain a fallback for manual/legacy installs.
+- **Self-hosted Inngest:** remove `INNGEST_DEV`, run a self-hosted `inngest` server, and set `INNGEST_BASE_URL`, `INNGEST_SIGNING_KEY`, `INNGEST_EVENT_KEY` to match it. Not Inngest Cloud.
+
+Apply the schema against the Railway database once using the DB's public proxy URL (`psql "$DATABASE_PUBLIC_URL" -f db/schema.sql`).
+
+Self-hosted Inngest doesn't auto-discover function changes on deploy, so this repo re-syncs automatically: `railway.json` sets the start command to `scripts/start.sh`, which backgrounds `scripts/post-deploy-sync.mjs` on every deploy to re-register the app with the Inngest engine. Manual nudge if you ever need it:
+
+```bash
+curl -X PUT https://<your-app-domain>/api/inngest
+```
+
+---
+
+## 🔧 Meta App configuration (manual, external)
+
+This can't be automated, do it in the [Meta App dashboard](https://developers.facebook.com/apps):
+
+1. **Save credentials** in **Settings** (or `.env.local`): App ID, App Secret, Webhook Verify Token.
+2. **OAuth redirect URI:** add `<NEXT_PUBLIC_APP_URL>/oauth/callback` to your app's valid OAuth redirect URIs.
+3. **Scopes** (granted on connect): `pages_show_list`, `pages_manage_engagement`, `pages_manage_metadata`, `pages_read_user_content`, `pages_messaging`, `business_management`, `instagram_basic`, `instagram_manage_comments`, `instagram_manage_messages`. (Or use a Facebook Login for Business `config_id`.)
+4. **Webhooks:** set the callback URL to `<public-url>/api/webhooks/meta` and the verify token to your `META_WEBHOOK_VERIFY_TOKEN`. Subscribe fields:
+   - Facebook Page: `feed`, `messages`
+   - Instagram: `comments`, `messages`
+
+For local dev, Meta needs a public HTTPS URL to deliver webhooks, tunnel port 3000 with `ngrok http 3000` and use that URL as both `NEXT_PUBLIC_APP_URL` and the webhook callback base.
+
+---
+
+## 🔌 How a comment flows
 
 ```
 Meta webhook → POST /api/webhooks/meta
@@ -37,240 +161,45 @@ Inngest automation-send (delayed + throttled per account):
                    → persist both as assistant messages
 ```
 
-The dedup gate is the unique index `(automation_id, message_id)`. The claim row
-is inserted **before** any external API call so webhook/Inngest retries can't
-double-post. If the public reply itself throws, the claim is rolled back so the
-next delivery retries.
+The dedup gate is the unique index `(automation_id, message_id)`. The claim row is inserted before any external API call so webhook/Inngest retries can't double-post. If the public reply itself throws, the claim is rolled back so the next delivery retries.
 
-## Setup
+---
 
-### 1. Install
+## 🔒 Admin auth
 
-```bash
-npm install
-```
-
-### 2. Environment
-
-Copy `.env.example` → `.env.local` and fill in:
-
-```
-DATABASE_URL=postgresql://postgres@localhost:5432/oh_daddy
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-INNGEST_DEV=1                    # local dev: use the local Inngest dev server
-APP_ENCRYPTION_KEY=              # 32-byte base64 key: openssl rand -base64 32
-
-# Meta/Instagram creds: set here OR via /setup (DB wins, env is fallback)
-INSTAGRAM_APP_ID=
-INSTAGRAM_APP_SECRET=
-META_WEBHOOK_VERIFY_TOKEN=       # generated by /setup; any random string locally
-META_APP_ID=                     # optional: Facebook Pages
-META_APP_SECRET=                 # optional: Facebook Pages
-META_CONFIG_ID=                  # optional: Facebook Login for Business
-```
-
-### 3. Database
-
-Point `DATABASE_URL` at any Postgres instance, then apply `db/schema.sql`
-(8 tables + `update_updated_at` trigger):
-
-```bash
-npm run db:push          # runs: psql "$DATABASE_URL" -f db/schema.sql
-```
-
-Sensitive values are **encrypted at rest** (AES-256-GCM) using
-`APP_ENCRYPTION_KEY`: `platform_accounts.access_token` (live Meta tokens) and
-any DB-stored Settings values. A DB read (backup leak, leaked `DATABASE_URL`,
-raw SQL) never yields live credentials directly. If you have pre-existing
-plaintext rows from an older deploy, encrypt them in place once (idempotent;
-skips sentinels/already-encrypted rows):
-
-```bash
-# Local: reads DATABASE_URL + APP_ENCRYPTION_KEY from your shell/.env.local
-npm run db:encrypt-secrets
-
-# Railway: run with the deployed service's env injected (so it targets the
-# live DB with the live key). Run from a local checkout via the Railway CLI:
-railway run npm run db:encrypt-secrets
-```
-
-A fresh deploy with no prior plaintext rows can skip this entirely.
-
-Or with Docker for a throwaway local DB:
-
-```bash
-docker run -d --name oh-daddy-pg -p 5432:5432 \
-  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=oh_daddy postgres:16-alpine
-```
-
-### 4. Run
-
-```bash
-npm run dev
-```
-
-### 5. Deploy (Railway)
-
-**Seamless path:** run the `/setup-railway` agent command (or directly:
-`bash scripts/railway-setup.sh`). It provisions Postgres, generates the env-only
-secrets, provisions a **self-hosted Inngest** server and wires the app to it,
-wires `DATABASE_URL`, mints a domain, deploys, applies the schema, and syncs
-Inngest functions. It does **not** ask for Meta/Instagram credentials — the
-deployed app's `/setup` wizard collects Instagram app ID/secret, optional
-Facebook app ID/secret/config ID, and the generated webhook verify token, then
-stores them encrypted in the database. It is idempotent and never rotates an
-existing `APP_ENCRYPTION_KEY`. Prereqs: `railway login` (browser auth, one time),
-and `RAILWAY_WORKSPACE` only if your account has more than one workspace.
-
-**Manual path:** set every value from `.env.example` as a **service variable**
-in the Railway dashboard (Settings -> Variables) or via `railway variable set`.
-In particular:
-
-- `APP_ENCRYPTION_KEY` -> `openssl rand -base64 32`. Set it **once, before the
-  first token is written**, and never change it: rotating or losing it makes
-  every previously-encrypted row undecryptable (you'd have to reconnect each
-  Meta account to re-issue tokens). Railway persists variables across deploys,
-  so a redeploy alone is safe. It is read lazily at runtime, so `next build`
-  succeeds even if it's unset at build time.
-- `ADMIN_PASSWORD`, `DATABASE_URL` -> Railway-managed; never committed.
-- Meta/Instagram credentials (`INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`,
-  `META_APP_ID`, `META_APP_SECRET`, `META_CONFIG_ID`,
-  `META_WEBHOOK_VERIFY_TOKEN`) are normally entered through the deployed
-  `/setup` wizard and stored encrypted in the DB. Env vars remain supported as a
-  fallback for manual/legacy installs.
-- **Self-hosted Inngest:** remove `INNGEST_DEV`, run a self-hosted `inngest`
-  server (e.g. the "Inngest Production Template"), and set `INNGEST_BASE_URL`,
-  `INNGEST_SIGNING_KEY`, `INNGEST_EVENT_KEY` to match it (the setup script wires
-  these as cross-service references). Not Inngest Cloud.
-
-Apply the schema against the Railway database once using the DB's public proxy
-URL (`psql "$DATABASE_PUBLIC_URL" -f db/schema.sql`), then run the encrypt
-migration above only if the DB already holds
-plaintext rows from an earlier deploy.
-
-#### Inngest function re-sync on every deploy
-
-Self-hosted Inngest (unlike Inngest Cloud) does **not** auto-discover function
-changes on deploy. After a deploy that adds, removes, or retunes an Inngest
-function, the engine keeps the **previous** registration until the app
-re-registers — so a new function silently never runs.
-
-This repo fixes that automatically: `railway.json` sets the start command to
-`scripts/start.sh`, which (on **every** deploy — GitHub auto-deploy or
-`railway up`) backgrounds `scripts/post-deploy-sync.mjs`. That script waits for
-the new container to start serving locally, then sends `PUT /api/inngest` to
-`NEXT_PUBLIC_APP_URL` so the SDK registers a **publicly reachable** callback URL
-with the engine at `INNGEST_BASE_URL`. Registering via localhost breaks
-self-hosted Inngest because the separate engine will call itself instead of the
-app. It's best-effort (never fails the deploy) and is skipped when
-`INNGEST_BASE_URL` is unset (plain local `npm run start`).
-
-If you ever need to re-sync by hand (e.g. you changed functions out-of-band):
-
-```bash
-curl -X PUT https://<your-app-domain>/api/inngest
-# 200 {"message":"Successfully registered","modified":true}
-```
-
-Confirm both functions are registered by querying the self-hosted engine:
-
-```bash
-curl -s https://<inngest-engine-domain>/v0/gql -X POST \
-  -H 'content-type: application/json' \
-  -d '{"query":"{ functions { name slug } }"}'
-```
-
-This starts **Next.js** (`localhost:3000`) and the **Inngest dev server**
-together (via `concurrently`). The Inngest dev UI is at `localhost:8288`.
-
-To run only Next.js: `npm run dev:next`.
-
-## Meta App configuration (manual, external)
-
-This can't be automated — do it in the [Meta App dashboard](https://developers.facebook.com/apps):
-
-1. **Save credentials** in **Settings** (or `.env.local`): App ID, App Secret,
-   Webhook Verify Token.
-2. **OAuth redirect URI:** add `<NEXT_PUBLIC_APP_URL>/oauth/callback` to your
-   app's valid OAuth redirect URIs.
-3. **Scopes** (granted on connect): `pages_show_list`,
-   `pages_manage_engagement`, `pages_manage_metadata`,
-   `pages_read_user_content`, `pages_messaging`, `business_management`,
-   `instagram_basic`, `instagram_manage_comments`,
-   `instagram_manage_messages`. (Or use a Facebook Login for Business
-   `config_id`.)
-4. **Webhooks:** set the callback URL to `<public-url>/api/webhooks/meta` and
-   the verify token to your `META_WEBHOOK_VERIFY_TOKEN`. Subscribe fields:
-   - Facebook Page: `feed`, `messages`
-   - Instagram: `comments`, `messages`
-
-   Page/IG webhook subscriptions are auto-created on connect (see
-   `meta-discovery.ts`).
-
-### Public URL for webhooks (dev)
-
-Meta needs a public HTTPS URL to deliver webhooks. For local dev, tunnel
-port 3000:
-
-```bash
-ngrok http 3000
-```
-
-Use the `https://…ngrok…` URL as both `NEXT_PUBLIC_APP_URL` and the webhook
-callback base.
-
-## End-to-end test
-
-1. **Accounts** → *Connect Meta* → complete OAuth → Pages + linked IG accounts
-   appear as connected.
-2. **Automations** → *New automation*: add keyword(s), a public reply variant,
-   and a DM message + link. Save.
-3. Post a matching comment on one of your posts (or simulate a webhook with a
-   valid HMAC signature).
-4. Confirm: **one** public reply + **one** DM are sent. A duplicate webhook
-   delivery does **not** double-post (claim-row dedup). Dashboard counts
-   increment.
-
-## Admin auth
-
-Every `/api/*` route is gated by `src/proxy.ts` (Next.js 16's renamed
-`middleware`). Set a shared secret in the environment:
+Every `/api/*` route is gated by `src/proxy.ts` (Next.js 16's renamed `middleware`). Set a shared secret in the environment:
 
 ```
 ADMIN_PASSWORD=some-long-random-string
 ```
 
-- **Browser:** visit `/login`, enter the password — you get an httpOnly session
-  cookie and the dashboard works as normal.
-- **Programmatic:** send `Authorization: Bearer <ADMIN_PASSWORD>`.
+Visit `/login` and enter the password for a browser session, or send `Authorization: Bearer <ADMIN_PASSWORD>` programmatically. Both are compared in constant time. If `ADMIN_PASSWORD` is unset, protected API routes return 503 (fail closed).
 
-Both are compared in constant time (`crypto.timingSafeEqual`). If
-`ADMIN_PASSWORD` is unset, protected API routes return **503** (fail closed).
+`/api/webhooks/meta`, `/api/oauth/callback`, and `/api/inngest` are exempt since they carry their own verification (HMAC signature, one-time CSRF token, and Inngest's own signing respectively) and need to stay internet-reachable.
 
-**Exempt** routes (each must be internet-reachable and carries its own
-verification, so session auth would break them):
+---
 
-- `/api/webhooks/meta` — HMAC `x-hub-signature-256` (keyed on `INSTAGRAM_APP_SECRET` for Instagram webhooks, `META_APP_SECRET` for Facebook Page webhooks).
-- `/api/oauth/callback` — one-time server-generated `oauth_state` CSRF token,
-  which can only be minted by the now-gated `POST /api/oauth/authorize`.
-- `/api/inngest` — Inngest's own request-signature verification; called by the
-  external Inngest service.
+## ⚠️ Known limitations
 
-All Meta credentials (App ID, App Secret, Verify Token, Config ID) can be set
-from the **Settings UI** or via env vars as a fallback. DB-stored values are
-encrypted at rest (AES-256-GCM). `PUT /api/settings` requires the operator
-session (the `ADMIN_PASSWORD` proxy gate + `requireOperator`), so an anonymous
-caller can never overwrite the secret that signs webhooks.
+- **Single shared-secret auth**, one operator password, no per-user accounts. Fine for a single-tenant deploy, add real user auth for multi-tenant.
+- **No automation caps**, could exceed Meta's ~200 comments/hour Graph ceiling under load.
+- **Comment-triggered DMs only**, inbound DM processing is out of scope.
 
-## Known limitations / security follow-ups
+---
 
-- **Single shared-secret auth** — one operator password, no per-user accounts.
-  Fine for a single-tenant deploy; add real user auth for multi-tenant.
-- **Secrets at rest** — live Meta access tokens and DB-stored Settings values
-  (including `meta_app_secret` / `meta_webhook_verify_token`) are encrypted with
-  AES-256-GCM (`APP_ENCRYPTION_KEY`). Writes go through the operator-gated
-  `PUT /api/settings`. The key itself lives only in the environment — if it
-  leaks, rotate it and re-issue all tokens (reconnect accounts).
-- **No automation caps** — could exceed Meta's ~200 comments/hour Graph ceiling
-  under load. Add sliding-window caps before scaling.
-- **Comment-triggered DMs only** — inbound DM processing is out of scope.
+## 👥 Community
+
+- [YouTube @kenkaidoesai](https://youtube.com/@kenkaidoesai) - tutorials and demos
+- [Skool community](https://skool.com/kenkai) - come hang out
+
+---
+
+## 📄 License
+
+AGPL-3.0
+
+---
+
+<p align="center">
+  <strong>Keyword in, reply + DM out. That's the whole app.</strong>
+</p>
