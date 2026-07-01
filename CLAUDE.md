@@ -28,3 +28,11 @@ Next.js 16 (App Router) · React 19 · TypeScript · raw `postgres` (porsager, n
 - **Per-post targeting:** an account-specific automation may set `comment_automations.platform_post_id` (NULL = all posts on the account). `loadAutomations` filters to `platform_post_id IS NULL OR = <comment post id>`, post-specific first. The DM body is sent verbatim — any link lives inside `dm_message`.
 - **Inngest is self-hosted in prod** (not Inngest Cloud): unset `INNGEST_DEV`, set `INNGEST_BASE_URL` + matching `INNGEST_SIGNING_KEY`/`INNGEST_EVENT_KEY`. Self-hosted Inngest does NOT auto-discover function changes on deploy — the engine keeps the prior registration until the app re-registers, so a newly added function (e.g. `automation-send`) silently won't run. The start command (`scripts/start.sh` → `scripts/post-deploy-sync.mjs`) auto-`PUT`s the public `NEXT_PUBLIC_APP_URL/api/inngest` on every deploy to re-sync; never register via localhost, because the separate engine will call itself. Manual nudge: `curl -X PUT https://<app>/api/inngest`. Verify on the engine: `POST <engine>/v0/gql {"query":"{ functions { name slug } }"}`.
 - Tests: `npm run test` (unit, mocked DB) + `npm run test:integration` (real Postgres via Docker, `src/test/pg.ts`).
+
+## Railway (deployment target)
+This project is designed to be deployed on Railway, and Railway is the source of truth for what's actually running — use the `railway` CLI (not just reading local files) whenever asked about deploy status, logs, env vars, or prod behavior.
+- CLI must be linked to this project (`railway link` if `railway status` fails) before other commands work; if the CLI itself is missing, install it (`brew install railway` or the official install script) and have the user run `railway login` (browser auth — you can't do it headlessly).
+- Logs: `railway logs` (app service) — check here first for prod errors, webhook failures, Inngest sync issues.
+- Env vars: `railway variables` to list/inspect; `railway variables --set KEY=VALUE` to set. There are two services (app + self-hosted Inngest) — pass `--service` when ambiguous.
+- Redeploy/status: `railway up` to deploy from local, `railway status` for current deployment state.
+- Provisioning is idempotent via `scripts/railway-setup.sh` — re-run it rather than clicking around the dashboard when infra needs to change (new service, missing var, etc.).
