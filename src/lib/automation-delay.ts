@@ -62,10 +62,11 @@ export async function getDelayMaxSeconds(): Promise<number> {
 
 /**
  * Pick the random jitter (whole seconds) to `step.sleep` before a send, in
- * [0, max - DELAY_MIN_SECONDS] inclusive. Layered on top of the throttle floor
- * (DELAY_THROTTLE_PERIOD_SECONDS), this lands the actual send in roughly
- * [DELAY_MIN_SECONDS, max]. `max` is clamped first, so out-of-range input can't
- * widen the window; when max == the floor the jitter is always 0.
+ * [0, max - DELAY_MIN_SECONDS] inclusive. Layered on top of the global
+ * `automation-send` throttle (see that file), this scatters send timing
+ * within the operator's configured window. `max` is clamped first, so
+ * out-of-range input can't widen the window; when max == DELAY_MIN_SECONDS
+ * the jitter is always 0.
  */
 export function pickJitterSeconds(maxSeconds: number): number {
 	const max = clampDelayMax(maxSeconds);

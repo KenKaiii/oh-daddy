@@ -30,6 +30,15 @@ const setupItem: StaggeredMenuItem = {
 	link: "/setup",
 };
 
+async function logout() {
+	try {
+		await fetch("/api/auth/login", { method: "DELETE" });
+	} finally {
+		// Full reload so every in-memory/session-derived state resets cleanly.
+		window.location.href = "/login";
+	}
+}
+
 export function SiteMenu() {
 	const router = useRouter();
 	// `null` until the status check resolves, so we don't flash the Setup item
@@ -76,22 +85,32 @@ export function SiteMenu() {
 				e.preventDefault();
 				router.push(link);
 			}}
-			footerNode={
-				setupIncomplete === false
-					? (close) => (
-							<button
-								type="button"
-								onClick={() => {
-									close();
-									router.push("/setup");
-								}}
-								className="text-sm font-medium text-black/55 underline decoration-black/25 underline-offset-4 transition-colors hover:text-black hover:decoration-black"
-							>
-								Run setup again
-							</button>
-						)
-					: undefined
-			}
+			footerNode={(close) => (
+				<div className="flex flex-col items-start gap-3">
+					{setupIncomplete === false && (
+						<button
+							type="button"
+							onClick={() => {
+								close();
+								router.push("/setup");
+							}}
+							className="text-sm font-medium text-black/55 underline decoration-black/25 underline-offset-4 transition-colors hover:text-black hover:decoration-black"
+						>
+							Run setup again
+						</button>
+					)}
+					<button
+						type="button"
+						onClick={() => {
+							close();
+							logout();
+						}}
+						className="text-sm font-medium text-black/55 underline decoration-black/25 underline-offset-4 transition-colors hover:text-black hover:decoration-black"
+					>
+						Log out
+					</button>
+				</div>
+			)}
 			displaySocials={false}
 			displayItemNumbering={false}
 			isFixed
