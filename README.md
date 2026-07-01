@@ -120,59 +120,17 @@ That's it. It provisions Postgres, secrets, a self-hosted Inngest server, and de
 
 ---
 
-## 🔧 Meta App configuration (manual, external)
-
-This can't be automated, do it in the [Meta App dashboard](https://developers.facebook.com/apps):
-
-1. **Save credentials** in **Settings** (or `.env.local`): App ID, App Secret, Webhook Verify Token.
-2. **OAuth redirect URI:** add `<NEXT_PUBLIC_APP_URL>/oauth/callback` to your app's valid OAuth redirect URIs.
-3. **Scopes** (granted on connect): `pages_show_list`, `pages_manage_engagement`, `pages_manage_metadata`, `pages_read_user_content`, `pages_messaging`, `business_management`, `instagram_basic`, `instagram_manage_comments`, `instagram_manage_messages`. (Or use a Facebook Login for Business `config_id`.)
-4. **Webhooks:** set the callback URL to `<public-url>/api/webhooks/meta` and the verify token to your `META_WEBHOOK_VERIFY_TOKEN`. Subscribe fields:
-   - Facebook Page: `feed`, `messages`
-   - Instagram: `comments`, `messages`
-
-For local dev, Meta needs a public HTTPS URL to deliver webhooks, tunnel port 3000 with `ngrok http 3000` and use that URL as both `NEXT_PUBLIC_APP_URL` and the webhook callback base.
-
----
-
-## 🔌 How a comment flows
-
-```
-Meta webhook → POST /api/webhooks/meta
-  → verify x-hub-signature-256 (Instagram secret for IG, Facebook secret for Page)
-  → filter to real comment add/edit events
-  → inngest.send("comment/process")  → return 200 fast
-
-Inngest process-comment (unthrottled):
-  STEP ingest      → normalize, upsert contact/conversation/message (dedup)
-  STEP match-check → if keyword matches, emit "automation/send"
-
-Inngest automation-send (delayed + globally rate-capped):
-  STEP delay       → optional operator-configured wait before sending
-  STEP send        → dedup + 24h cooldown
-                   → CLAIM automation_matches row BEFORE posting (idempotency)
-                   → post rotated public reply (Graph API)
-                   → send Private Reply DM (bypasses the 24h window)
-                   → persist both as assistant messages
-```
-
-All runs across every account share one throttle bucket capped at 195 sends/hour, so the combined total, not per-account, never trips Meta's Graph API ceiling.
-
-The dedup gate is the unique index `(automation_id, message_id)`. The claim row is inserted before any external API call so webhook/Inngest retries can't double-post. If the public reply itself throws, the claim is rolled back so the next delivery retries.
-
----
-
 ## 🔒 Admin auth
 
-Every `/api/*` route is gated by `src/proxy.ts` (Next.js 16's renamed `middleware`). Set a shared secret in the environment:
+On Railway, `/setup-railway` generates this for you and prints it once at the end.
 
+Running locally, generate your own and drop it in `.env.local`:
+
+```bash
+echo "ADMIN_PASSWORD=$(openssl rand -base64 24)" >> .env.local
 ```
-ADMIN_PASSWORD=some-long-random-string
-```
 
-Visit `/login` and enter the password for a browser session, or send `Authorization: Bearer <ADMIN_PASSWORD>` programmatically. Both are compared in constant time. If `ADMIN_PASSWORD` is unset, protected API routes return 503 (fail closed).
-
-`/api/webhooks/meta`, `/api/oauth/callback`, and `/api/inngest` are exempt since they carry their own verification (HMAC signature, one-time CSRF token, and Inngest's own signing respectively) and need to stay internet-reachable.
+Visit `/login` and sign in with it.
 
 ---
 
