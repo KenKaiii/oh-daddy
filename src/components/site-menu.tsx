@@ -7,7 +7,10 @@ import { useEffect, useState } from "react";
 import StaggeredMenu, {
 	type StaggeredMenuItem,
 } from "@/components/StaggeredMenu";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { apiFetch } from "@/lib/api-client";
+import { notify } from "@/lib/toast";
 
 const baseItems: StaggeredMenuItem[] = [
 	{ label: "Dashboard", ariaLabel: "Go to the dashboard", link: "/" },
@@ -37,6 +40,80 @@ async function logout() {
 		// Full reload so every in-memory/session-derived state resets cleanly.
 		window.location.href = "/login";
 	}
+}
+
+/**
+ * Global emergency stop for every keyword automation at once, regardless of
+ * each automation's own is_active flag. Sits next to the logo so it's always
+ * one click away from any page.
+ */
+function SystemToggle() {
+	const [enabled, setEnabled] = useState<boolean | null>(null);
+	const [busy, setBusy] = useState(false);
+
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			try {
+				const res = await apiFetch("/api/settings/automations-enabled");
+				if (!res.ok) return;
+				const json = await res.json();
+				if (!cancelled) setEnabled(json.data?.enabled ?? true);
+			} catch {
+				// Non-fatal — leave the toggle hidden if status can't load.
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	async function toggle() {
+		if (enabled === null || busy) return;
+		const next = !enabled;
+		setEnabled(next);
+		setBusy(true);
+		try {
+			const res = await apiFetch("/api/settings/automations-enabled", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ enabled: next }),
+			});
+			if (!res.ok) {
+				const json = await res.json().catch(() => ({}));
+				throw new Error(json.error ?? "Failed to update");
+			}
+			notify.success(
+				next
+					? "Automations back on"
+					: "Automations paused — nothing will send until switched back on",
+			);
+		} catch (e) {
+			// Revert the optimistic toggle.
+			setEnabled(!next);
+			notify.error(e);
+		} finally {
+			setBusy(false);
+		}
+	}
+
+	// Stay hidden until the initial state resolves so it never flashes the
+	// wrong color.
+	if (enabled === null) return null;
+
+	return (
+		<div className="flex items-center gap-2">
+			<Badge variant={enabled ? "positive" : "danger"}>
+				System {enabled ? "on" : "off"}
+			</Badge>
+			<Switch
+				checked={enabled}
+				onCheckedChange={toggle}
+				disabled={busy}
+				aria-label="Emergency stop: turn all automations on or off"
+			/>
+		</div>
+	);
 }
 
 export function SiteMenu() {
@@ -120,13 +197,16 @@ export function SiteMenu() {
 			colors={["#211f3d", "#6d6dfb"]}
 			accentColor="#6d6dfb"
 			logoNode={
-				<Link
-					href="/"
-					aria-label="Oh Daddy — home"
-					className="brand-shimmer font-display text-xl font-bold tracking-tight"
-				>
-					Oh Daddy
-				</Link>
+				<div className="flex items-center gap-3">
+					<Link
+						href="/"
+						aria-label="Oh Daddy — home"
+						className="brand-shimmer font-display text-xl font-bold tracking-tight"
+					>
+						Oh Daddy
+					</Link>
+					<SystemToggle />
+				</div>
 			}
 		/>
 	);

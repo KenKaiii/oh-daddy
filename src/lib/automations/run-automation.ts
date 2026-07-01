@@ -1,3 +1,4 @@
+import { getAutomationsEnabled } from "@/lib/automation-kill-switch";
 import { findMatchingAutomation } from "@/lib/automations/keyword-matcher";
 import { pickReply } from "@/lib/automations/reply-rotator";
 import { getDb, isUniqueViolation } from "@/lib/db";
@@ -70,6 +71,11 @@ export async function runKeywordAutomation(
 		platformMessageId,
 		platformPostId,
 	} = params;
+
+	// 0. Global emergency stop — checked live at send time (not just on ingest)
+	// so anything already queued/delayed before the operator flipped this off
+	// still gets stopped before touching the Meta API.
+	if (!(await getAutomationsEnabled())) return { matched: false };
 
 	const sql = getDb();
 

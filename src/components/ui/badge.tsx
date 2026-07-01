@@ -2,7 +2,13 @@ import type { HTMLAttributes } from "react";
 
 import { cn } from "@/lib/utils";
 
-type Variant = "default" | "success" | "positive" | "muted" | "outline";
+type Variant =
+	| "default"
+	| "success"
+	| "positive"
+	| "muted"
+	| "outline"
+	| "danger";
 
 const variants: Record<Variant, string> = {
 	// Data token (keyword chips) — neutral, mono for a technical feel.
@@ -15,6 +21,8 @@ const variants: Record<Variant, string> = {
 	muted: "bg-muted text-muted-foreground",
 	// Neutral metadata chip — borderless subtle fill (no badge carries a border).
 	outline: "bg-foreground/5 text-muted-foreground",
+	// Serious warning status (global kill switch OFF) — solid destructive red.
+	danger: "bg-destructive text-destructive-foreground",
 };
 
 export function Badge({
