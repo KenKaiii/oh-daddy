@@ -67,70 +67,15 @@ If you need the full chatbot suite, ManyChat is a solid product. If all you need
 
 ---
 
-## 🚀 Getting started
-
-### Fork it
-
-Click **Fork** (top right of this repo) so you've got your own copy to deploy from.
-
-### Clone it
-
-```bash
-git clone https://github.com/<your-username>/oh-daddy.git
-cd oh-daddy
-npm install
-```
-
-### Set up your environment
-
-Copy `.env.example` → `.env.local` and fill in `DATABASE_URL` and `APP_ENCRYPTION_KEY` (`openssl rand -base64 32`). Everything else, including your Meta/Instagram credentials, can be entered later through the app's `/setup` wizard.
-
-### Database
-
-Point `DATABASE_URL` at any Postgres instance (or spin up a throwaway one with Docker), then push the schema:
-
-```bash
-docker run -d --name oh-daddy-pg -p 5432:5432 \
-  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=oh_daddy postgres:16-alpine
-
-npm run db:push
-```
-
-### Run
-
-```bash
-npm run dev
-```
-
-This starts **Next.js** (`localhost:3000`) and the **Inngest dev server** together. Just Next.js: `npm run dev:next`.
-
-That's it. Head to `/setup` to connect Meta.
-
----
-
 ## ☁️ Deploy (Railway)
 
 1. Fork this repo.
 2. Open it in Claude Code / GG Coder.
 3. Run `/setup-railway`.
 
-That's it. It provisions Postgres, secrets, a self-hosted Inngest server, and deploys the app for you. Meta/Instagram credentials get entered afterward in the deployed app's `/setup` wizard.
+That's it. It provisions Postgres, secrets, a self-hosted Inngest server, and deploys the app for you. It prints your dashboard login password (`ADMIN_PASSWORD`) once at the end, save it. Meta/Instagram credentials get entered afterward in the deployed app's `/setup` wizard.
 
 **You need:** a Railway account, and the Railway CLI installed and logged in (`railway login`).
-
----
-
-## 🔒 Admin auth
-
-On Railway, `/setup-railway` generates this for you and prints it once at the end.
-
-Running locally, generate your own and drop it in `.env.local`:
-
-```bash
-echo "ADMIN_PASSWORD=$(openssl rand -base64 24)" >> .env.local
-```
-
-Visit `/login` and sign in with it.
 
 ---
 
