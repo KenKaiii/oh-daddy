@@ -168,14 +168,12 @@ export default function SettingsPage() {
 			<div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
 				<Card className="glass-hover">
 					<CardHeader>
-						<CardTitle>Send delays</CardTitle>
+						<CardTitle className="flex items-center gap-1.5">
+							Send delays
+							<InfoTip text="When a comment matches, the reply + DM are sent after a random wait so you don't blast the Meta API. Each connected account sends one action per interval — multiple accounts run in parallel." />
+						</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-4">
-						<p className="text-sm text-muted-foreground">
-							When a comment matches, the reply + DM are sent after a random
-							wait so you don't blast the Meta API. Each connected account sends
-							one action per interval — multiple accounts run in parallel.
-						</p>
 						<div className="space-y-1.5">
 							<span className="flex items-center gap-1.5">
 								<Label htmlFor="delay-max">
@@ -203,64 +201,55 @@ export default function SettingsPage() {
 					</CardContent>
 				</Card>
 
-				<div className="space-y-6">
-					<Card className="glass-hover">
-						<CardHeader>
-							<CardTitle>Meta credentials</CardTitle>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							{FIELDS.map((f) => {
-								const s = statusFor(f.provider);
-								return (
-									<div key={f.provider} className="space-y-1.5">
-										<div className="flex items-center justify-between gap-2">
-											<span className="flex items-center gap-1.5">
-												<Label htmlFor={f.provider}>{f.label}</Label>
-												<InfoTip text={f.info} />
-												{s?.is_set ? (
-													<Badge variant="positive">Set</Badge>
-												) : (
-													<Badge variant="muted">Not set</Badge>
-												)}
-											</span>
-											{f.provider === "meta_webhook_verify_token" && (
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={generateVerifyToken}
-												>
-													Generate
-												</Button>
+				<Card className="glass-hover">
+					<CardHeader>
+						<CardTitle>Meta sh*t</CardTitle>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						{FIELDS.map((f) => {
+							const s = statusFor(f.provider);
+							return (
+								<div key={f.provider} className="space-y-1.5">
+									<div className="flex items-center justify-between gap-2">
+										<span className="flex items-center gap-1.5">
+											<Label htmlFor={f.provider}>{f.label}</Label>
+											<InfoTip text={f.info} />
+											{s?.is_set ? (
+												<Badge variant="positive">Set</Badge>
+											) : (
+												<Badge variant="muted">Not set</Badge>
 											)}
-										</div>
-										<Input
-											id={f.provider}
-											type={f.provider.includes("secret") ? "password" : "text"}
-											value={values[f.provider] ?? ""}
-											onChange={(e) =>
-												setValues({ ...values, [f.provider]: e.target.value })
-											}
-											placeholder={
-												s?.is_set
-													? "•••••• (leave blank to keep)"
-													: f.placeholder
-											}
-										/>
+										</span>
+										{f.provider === "meta_webhook_verify_token" && (
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={generateVerifyToken}
+											>
+												Generate
+											</Button>
+										)}
 									</div>
-								);
-							})}
+									<Input
+										id={f.provider}
+										type={f.provider.includes("secret") ? "password" : "text"}
+										value={values[f.provider] ?? ""}
+										onChange={(e) =>
+											setValues({ ...values, [f.provider]: e.target.value })
+										}
+										placeholder={
+											s?.is_set ? "•••••• (leave blank to keep)" : f.placeholder
+										}
+									/>
+								</div>
+							);
+						})}
 
-							<Button onClick={save} disabled={saving}>
-								{saving ? "Saving…" : "Save credentials"}
-							</Button>
-						</CardContent>
-					</Card>
+						<Button onClick={save} disabled={saving}>
+							{saving ? "Saving…" : "Save credentials"}
+						</Button>
 
-					<Card className="glass-hover">
-						<CardHeader>
-							<CardTitle>Meta App configuration</CardTitle>
-						</CardHeader>
-						<CardContent className="space-y-4 text-sm">
+						<div className="space-y-4 pt-2 text-sm">
 							<div className="space-y-1.5">
 								<span className="flex items-center gap-1.5">
 									<Label>OAuth Redirect URI</Label>
@@ -297,9 +286,9 @@ export default function SettingsPage() {
 									/>
 								</div>
 							</div>
-						</CardContent>
-					</Card>
-				</div>
+						</div>
+					</CardContent>
+				</Card>
 			</div>
 		</div>
 	);
