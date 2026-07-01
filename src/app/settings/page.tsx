@@ -168,10 +168,10 @@ export default function SettingsPage() {
 			<div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
 				<Card className="glass-hover">
 					<CardHeader>
-						<CardTitle className="flex items-center gap-1.5">
-							Send delays
+						<div className="flex items-center gap-1.5">
+							<CardTitle>Send delays</CardTitle>
 							<InfoTip text="When a comment matches, the reply + DM are sent after a random wait so you don't blast the Meta API. Each connected account sends one action per interval — multiple accounts run in parallel." />
-						</CardTitle>
+						</div>
 					</CardHeader>
 					<CardContent className="space-y-4">
 						<div className="space-y-1.5">
