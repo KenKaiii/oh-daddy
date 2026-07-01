@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { useAutomationsEnabled } from "@/components/automations-enabled-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
@@ -48,6 +49,10 @@ function StatCard({
 
 export default function DashboardPage() {
 	const router = useRouter();
+	// The global kill switch overrides every automation's own is_active flag,
+	// so while it's off nothing is actually running — the dashboard should show
+	// 0 active automations, not the raw DB count.
+	const { enabled: automationsEnabled } = useAutomationsEnabled();
 	const [stats, setStats] = useState<Stats | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -137,7 +142,7 @@ export default function DashboardPage() {
 						/>
 						<StatCard
 							label="Active automations"
-							value={stats.activeAutomations}
+							value={automationsEnabled === false ? 0 : stats.activeAutomations}
 							accent
 						/>
 					</div>

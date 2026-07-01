@@ -297,15 +297,6 @@ export default function AutomationsPage() {
 				</Card>
 			)}
 
-			{automationsEnabled === false && (
-				<Card className="border-destructive/40 bg-destructive/5">
-					<CardContent className="p-5 text-sm text-destructive">
-						System is off. Nothing will send until you switch it back on next to
-						the logo.
-					</CardContent>
-				</Card>
-			)}
-
 			{loading ? (
 				<p className="text-sm text-muted-foreground">Loading…</p>
 			) : automations.length === 0 ? (
