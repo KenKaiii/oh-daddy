@@ -75,7 +75,7 @@ If you need the full chatbot suite, ManyChat is a solid product. If all you need
 
 That's it. It provisions Postgres, secrets, a self-hosted Inngest server, and deploys the app for you. It prints your dashboard login password (`ADMIN_PASSWORD`) once at the end, save it. Meta/Instagram credentials get entered afterward in the deployed app's `/setup` wizard.
 
-**You need:** a Railway account, and the Railway CLI installed and logged in (`railway login`).
+**You need:** a Railway account ([create one here](https://railway.com?referralCode=Q2XTYD)), and the Railway CLI installed and logged in (`railway login`).
 
 ---
 
